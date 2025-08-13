@@ -4,22 +4,26 @@ import { ShoppingBag, Plus, Minus, Trash2, Loader2, CheckCircle2 } from 'lucide-
 import { api } from '@/services/api';
 import { money } from '@/components/utils'; // USD
 import { z } from 'zod';
-// opcional (se você instalou): import { toast } from 'react-hot-toast';
 
-const PhoneDigits = z.preprocess(
-  (v) => String(v ?? '').replace(/\D/g, ''), // mantém só dígitos
-  z
-    .string()
-    .refine((d) => d.length === 0 || d.length === 10 || (d.length === 11 && d.startsWith('1')), 'Enter a valid US phone number')
-);
+// ---- Validation (Zod) ----
+// Phone: mantém somente dígitos; aceita 10 (US) ou 11 iniciando com 1
+const usDigits = (raw: unknown) => String(raw ?? '').replace(/\D/g, '');
+const PhoneDigits = z
+  .string()
+  .transform(usDigits)
+  .refine(
+    (d) => d.length === 0 || d.length === 10 || (d.length === 11 && d.startsWith('1')),
+    'Enter a valid US phone number (10 digits, e.g., 8135551234, or 1 + 10 digits).'
+  );
 
+// Name: permite letras com acento, espaços, apóstrofo e hífen
 const FormSchema = z.object({
   name: z
     .string()
     .trim()
-    .regex(/^[A-Za-z\s'-]{2,60}$/, 'Name must contain only letters (2–60 chars)'),
+    .regex(/^[\p{L}\s'-]{2,60}$/u, 'Name must contain only letters (2–60 chars)'),
   email: z.string().email('Invalid email').max(254),
-  phone: PhoneDigits.optional(),
+  phone: PhoneDigits.optional(), // opcional
   note: z.string().max(300).optional(),
 });
 
@@ -44,7 +48,6 @@ export function CartMenu() {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // helpers
   const disabled = status !== 'idle';
 
   function setField<K extends keyof Form>(k: K, v: string) {
@@ -53,7 +56,6 @@ export function CartMenu() {
   }
 
   async function sendRequest() {
-    // valida com zod
     const parsed = FormSchema.safeParse(form);
     if (!parsed.success) {
       const e: Errors = {};
@@ -82,14 +84,12 @@ export function CartMenu() {
       clear();
       setForm({ name: '', email: '', phone: '', note: '' });
       setStatus('sent');
-      // toast?.success('Request sent! We will contact you shortly.');
       setTimeout(() => {
         setStatus('idle');
         setOpen(false);
       }, 1200);
     } catch (e) {
       console.error(e);
-      // toast?.error('Failed to send. Please try again.');
       setStatus('idle');
     }
   }
@@ -177,7 +177,6 @@ export function CartMenu() {
                   <input
                     type="text"
                     inputMode="text"
-                    pattern="^[A-Za-z\s'-]{2,60}$"
                     maxLength={60}
                     className={`w-full rounded-lg border px-3 py-2 text-sm ${errors.name ? 'border-red-500' : ''}`}
                     placeholder="Name *"
@@ -205,10 +204,9 @@ export function CartMenu() {
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="\d*"
                     maxLength={11} // 10 (US) ou 11 com prefixo 1
                     className={`w-full rounded-lg border px-3 py-2 text-sm ${errors.phone ? 'border-red-500' : ''}`}
-                    placeholder="Phone (US)"
+                    placeholder="Phone (US: 10 digits, e.g., 8135551234)"
                     value={form.phone}
                     onChange={(e) => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 11))}
                     disabled={disabled}
@@ -241,7 +239,9 @@ export function CartMenu() {
                 {status === 'sending' && 'Sending…'}
                 {status === 'sent' && 'Sent!'}
               </button>
-              <p className="text-center text-[11px] text-neutral-500">We’ll get back within 20 minutes.</p>
+              <p className="text-center text-[11px] text-neutral-500">
+                We’ll get back within 20 minutes. Phone is optional.
+              </p>
             </div>
           </div>
         </div>

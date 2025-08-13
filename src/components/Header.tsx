@@ -1,15 +1,36 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CartMenu } from '@/components/cart/CartMenu';
+import { isAuthed, clearToken } from '@/services/auth';
 
 export function Header() {
+  const nav = useNavigate();
+  const authed = isAuthed();
+
   return (
     <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-xl font-semibold tracking-tight">
           <span className="text-emerald-600">Listo</span>365
         </Link>
+
         <nav className="flex items-center gap-6">
           <Link to="/" className="hover:text-emerald-700">Products</Link>
+
+          {authed ? (
+            <div className="flex items-center gap-4">
+              <Link to="/admin" className="hover:text-emerald-700">Admin</Link>
+              <button
+                onClick={() => { clearToken(); nav('/'); }}
+                className="text-red-600 hover:underline"
+                aria-label="Logout"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <Link to="/admin/login" className="hover:text-emerald-700">Admin</Link>
+          )}
+
           <CartMenu />
         </nav>
       </div>
