@@ -1,49 +1,48 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/services/api';
-import type { CategoryNode, Product } from '@/types';
+import type { Product } from '@/types';
+import CategoryPicker from '@/components/admin/CategoryPicker';
 
 type Form = {
   name: string;
-  slug?: string;
   description: string;
-  price: number;
-  imageUrl?: string;     // fallback (opcional)
-  stock: number;
+  price: string;          // <- string no formulário (convertemos no submit)
+  stock: string;          // <- idem
   active: boolean;
   sortOrder: number;
   packageSize?: string;
   pdfUrl?: string;
+  imageUrl?: string;      // fallback opcional (capa legada)
   categoryParentId?: string;
-  categoryId?: string;   // filha
-  imagesText: string;    // 1 URL por linha
+  categoryId?: string;    // filha
+  imagesText: string;     // 1 URL por linha
 };
 
 export default function Dashboard() {
   const empty: Form = {
-    name: '', description: '', price: 0, stock: 0, active: true, sortOrder: 0,
-    packageSize: '', pdfUrl: '', imageUrl: '', categoryParentId: '', categoryId: '', imagesText: ''
+    name: '',
+    description: '',
+    price: '',
+    stock: '0',
+    active: true,
+    sortOrder: 0,
+    packageSize: '',
+    pdfUrl: '',
+    imageUrl: '',
+    categoryParentId: '',
+    categoryId: '',
+    imagesText: '',
   };
 
   const [list, setList] = useState<Product[]>([]);
-  const [cats, setCats] = useState<CategoryNode[]>([]);
   const [form, setForm] = useState<Form>({ ...empty });
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const children = useMemo(
-    () => cats.find(c => c.id === form.categoryParentId)?.children ?? [],
-    [cats, form.categoryParentId]
-  );
-
   async function refresh() {
-    const [p, c] = await Promise.all([
-      api.get('/products?sort=sortOrder'),
-      api.get('/categories'),
-    ]);
+    const p = await api.get('/products?sort=sortOrder');
     setList(p.data);
-    setCats(c.data);
   }
-
   useEffect(() => { refresh(); }, []);
 
   function parseImages(text: string) {
@@ -51,27 +50,36 @@ export default function Dashboard() {
   }
 
   async function save() {
+    // validações simples
+    const priceNum = parseFloat(String(form.price).replace(',', '.'));
+    if (!(priceNum > 0)) { alert('Price must be a positive number (USD).'); return; }
+    const stockNum = parseInt(String(form.stock || '0'), 10);
+    if (!(stockNum >= 0)) { alert('Stock must be 0 or more.'); return; }
+
     setLoading(true);
     try {
       const payload: any = {
-        name: form.name,
-        description: form.description,
-        price: Number(form.price),
-        stock: Number(form.stock),
-        active: form.active,
-        packageSize: form.packageSize || undefined,
-        pdfUrl: form.pdfUrl || undefined,
-        imageUrl: form.imageUrl || undefined,
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: priceNum,
+        stock: stockNum,
+        active: !!form.active,
+        packageSize: form.packageSize?.trim() || undefined,
+        pdfUrl: form.pdfUrl?.trim() || undefined,    // aceita "/catalog/..." ou http(s)
+        imageUrl: form.imageUrl?.trim() || undefined,
         images: parseImages(form.imagesText),
-        categoryId: form.categoryId || undefined,
+        categoryId: form.categoryId || undefined,    // enviar a FILHA
       };
+
       if (editing) await api.put(`/products/${editing}`, payload);
       else await api.post('/products', payload);
 
       setForm({ ...empty });
       setEditing(null);
       await refresh();
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function remove(id: string) {
@@ -93,8 +101,8 @@ export default function Dashboard() {
     setForm({
       name: p.name,
       description: p.description,
-      price: p.price,
-      stock: p.stock,
+      price: String(p.price ?? ''),
+      stock: String(p.stock ?? '0'),
       active: p.active,
       sortOrder: p.sortOrder,
       packageSize: p.packageSize || '',
@@ -111,62 +119,157 @@ export default function Dashboard() {
       <h1 className="text-2xl font-bold">Admin — Products</h1>
 
       {/* Form */}
-      <div className="rounded-xl border bg-white p-4 space-y-2">
+      <div className="space-y-3 rounded-xl border bg-white p-4">
         <h2 className="text-lg font-semibold">{editing ? 'Edit product' : 'New product'}</h2>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Name"
-            value={form.name} onChange={e=>setForm(v=>({...v, name:e.target.value}))}/>
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Price (USD)" type="number" step="0.01"
-            value={form.price} onChange={e=>setForm(v=>({...v, price:Number(e.target.value)}))}/>
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Stock" type="number"
-            value={form.stock} onChange={e=>setForm(v=>({...v, stock:Number(e.target.value)}))}/>
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Package size (e.g., 1 gal / 32 oz)"
-            value={form.packageSize} onChange={e=>setForm(v=>({...v, packageSize:e.target.value}))}/>
-          <input className="rounded border px-3 py-2 text-sm" placeholder="PDF URL (datasheet)"
-            value={form.pdfUrl} onChange={e=>setForm(v=>({...v, pdfUrl:e.target.value}))}/>
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Legacy cover image URL (optional)"
-            value={form.imageUrl} onChange={e=>setForm(v=>({...v, imageUrl:e.target.value}))}/>
 
-          <textarea className="md:col-span-2 rounded border px-3 py-2 text-sm" rows={3} placeholder="Description"
-            value={form.description} onChange={e=>setForm(v=>({...v, description:e.target.value}))}/>
+        <form
+          onSubmit={(e) => { e.preventDefault(); void save(); }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Name *</label>
+              <input
+                required
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="Product name"
+                value={form.name}
+                onChange={e => setForm(v => ({ ...v, name: e.target.value }))}
+              />
+            </div>
 
-          {/* Categoria pai */}
-          <select className="rounded border px-3 py-2 text-sm"
-            value={form.categoryParentId}
-            onChange={e=>setForm(v=>({...v, categoryParentId: e.target.value, categoryId: ''}))}>
-            <option value="">Parent category</option>
-            {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Price (USD) *</label>
+              <input
+                required
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="e.g., 19.99"
+                value={form.price}
+                onChange={e => setForm(v => ({ ...v, price: e.target.value }))}
+              />
+            </div>
 
-          {/* Subcategoria (filha) */}
-          <select className="rounded border px-3 py-2 text-sm"
-            value={form.categoryId}
-            onChange={e=>setForm(v=>({...v, categoryId: e.target.value}))}
-            disabled={!form.categoryParentId}>
-            <option value="">Subcategory</option>
-            {children.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Stock *</label>
+              <input
+                required
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="e.g., 12"
+                value={form.stock}
+                onChange={e => setForm(v => ({ ...v, stock: e.target.value }))}
+              />
+            </div>
 
-          <label className="inline-flex items-center gap-2">
-            <input type="checkbox" checked={form.active} onChange={e=>setForm(v=>({...v, active:e.target.checked}))}/>
-            <span className="text-sm">Active</span>
-          </label>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Package size</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="e.g., 1 gal / 32 oz"
+                value={form.packageSize}
+                onChange={e => setForm(v => ({ ...v, packageSize: e.target.value }))}
+              />
+            </div>
 
-          <textarea className="md:col-span-2 rounded border px-3 py-2 text-sm" rows={4}
-            placeholder={"Images (one URL per line)\nhttps://.../img1.jpg\nhttps://.../img2.jpg\nhttps://.../img3.jpg\nhttps://.../img4.jpg"}
-            value={form.imagesText} onChange={e=>setForm(v=>({...v, imagesText:e.target.value}))}/>
-        </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">PDF URL (datasheet)</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="/catalog/slug/datasheet.pdf or https://..."
+                value={form.pdfUrl}
+                onChange={e => setForm(v => ({ ...v, pdfUrl: e.target.value }))}
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Aceita caminhos relativos (<code>/catalog/…</code>) ou http(s).
+              </p>
+            </div>
 
-        <div className="flex gap-2">
-          <button onClick={save} disabled={loading} className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
-            {editing ? (loading ? 'Saving…' : 'Save changes') : (loading ? 'Creating…' : 'Create')}
-          </button>
-          {editing && (
-            <button onClick={()=>{ setEditing(null); setForm({...empty}); }} className="rounded border px-4 py-2 text-sm">
-              Cancel
+            <div>
+              <label className="mb-1 block text-sm font-medium">Legacy cover image (optional)</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="/catalog/slug/1.jpg or https://..."
+                value={form.imageUrl}
+                onChange={e => setForm(v => ({ ...v, imageUrl: e.target.value }))}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium">Description *</label>
+              <textarea
+                required
+                rows={3}
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="Short description"
+                value={form.description}
+                onChange={e => setForm(v => ({ ...v, description: e.target.value }))}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium">Images (one URL per line) *</label>
+              <textarea
+                required
+                rows={4}
+                className="w-full rounded border px-3 py-2 text-sm font-mono"
+                placeholder={`/catalog/slug/1.jpg
+/catalog/slug/2.jpg
+/catalog/slug/3.jpg
+/catalog/slug/4.jpg`}
+                value={form.imagesText}
+                onChange={e => setForm(v => ({ ...v, imagesText: e.target.value }))}
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                A primeira imagem vira a capa. Também aceita URLs http(s).
+              </p>
+            </div>
+
+            {/* Categorias (com Seed + New dentro do componente) */}
+            <div className="md:col-span-2">
+              <CategoryPicker
+                parentId={form.categoryParentId}
+                subcategoryId={form.categoryId}
+                onChangeParent={(id) => setForm(v => ({ ...v, categoryParentId: id, categoryId: undefined }))}
+                onChangeSub={(id) => setForm(v => ({ ...v, categoryId: id }))}
+              />
+            </div>
+
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={e => setForm(v => ({ ...v, active: e.target.checked }))}
+              />
+              <span className="text-sm">Active</span>
+            </label>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {editing ? (loading ? 'Saving…' : 'Save changes') : (loading ? 'Creating…' : 'Create')}
             </button>
-          )}
-        </div>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => { setEditing(null); setForm({ ...empty }); }}
+                className="rounded border px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
       </div>
 
       {/* Table */}
@@ -184,18 +287,18 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {list.map(p=>(
+            {list.map(p => (
               <tr key={p.id} className="border-t">
                 <td className="px-3 py-2">
                   <div className="inline-flex items-center gap-1">
-                    <button onClick={()=>move(p.id, -1)} className="rounded border px-2 py-1">↑</button>
-                    <button onClick={()=>move(p.id, +1)} className="rounded border px-2 py-1">↓</button>
+                    <button onClick={() => move(p.id, -1)} className="rounded border px-2 py-1">↑</button>
+                    <button onClick={() => move(p.id, +1)} className="rounded border px-2 py-1">↓</button>
                     <span className="ml-2 text-xs text-neutral-500">{p.sortOrder}</span>
                   </div>
                 </td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-neutral-500">{p.description}</div>
+                  <div className="text-xs text-neutral-500 line-clamp-2">{p.description}</div>
                 </td>
                 <td className="px-3 py-2">
                   {p.category ? (
@@ -209,13 +312,13 @@ export default function Dashboard() {
                 <td className="px-3 py-2">{p.active ? 'Yes' : 'No'}</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
-                    <button onClick={()=>startEdit(p)} className="rounded border px-2 py-1">Edit</button>
-                    <button onClick={()=>remove(p.id)} className="rounded border px-2 py-1 text-red-600">Delete</button>
+                    <button onClick={() => startEdit(p)} className="rounded border px-2 py-1">Edit</button>
+                    <button onClick={() => remove(p.id)} className="rounded border px-2 py-1 text-red-600">Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
-            {list.length===0 && (
+            {list.length === 0 && (
               <tr><td className="px-3 py-3 text-neutral-500" colSpan={7}>No products found.</td></tr>
             )}
           </tbody>
