@@ -7,17 +7,30 @@ import { toast } from "react-hot-toast";
 type Form = {
   name: string;
   description: string;
-  price: string; // string no form, vira número no submit
-  stock: string; // idem
+  price: string;
+  stock: string;
   active: boolean;
   sortOrder: number;
   packageSize?: string;
   pdfUrl?: string;
-  imageUrl?: string; // fallback opcional (capa legada)
+  imageUrl?: string;
   categoryParentId?: string;
-  categoryId?: string; // filha
-  imagesText: string; // 1 URL por linha
+  categoryId?: string;
+  imagesText: string;
 };
+
+type SaleForm = {
+  productId: string | null;
+  title: string;
+  mode: "percent" | "price";
+  percentOff: string; // string para input controlado
+  priceOff: string; // string para input controlado
+  startsAt: string; // "YYYY-MM-DDTHH:mm" (datetime-local)
+  endsAt: string; // idem
+  saving: boolean;
+};
+
+type ShowFilter = "active" | "archived" | "all";
 
 export default function Dashboard() {
   const empty: Form = {
@@ -40,9 +53,44 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // filtros/visão
+  const [show, setShow] = useState<ShowFilter>("active");
+
+  // modal de sale
+  const [sale, setSale] = useState<SaleForm>(() => ({
+    productId: null,
+    title: "Sale",
+    mode: "percent",
+    percentOff: "10",
+    priceOff: "",
+    startsAt: defaultStartLocal(),
+    endsAt: defaultEndLocal(),
+    saving: false,
+  }));
+
+  function defaultStartLocal() {
+    const d = new Date(Date.now() + 5 * 60 * 1000); // +5 min
+    return toLocalInputValue(d);
+    // formato "YYYY-MM-DDTHH:mm"
+  }
+  function defaultEndLocal() {
+    const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 dias
+    return toLocalInputValue(d);
+  }
+  function toLocalInputValue(d: Date) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  }
+
   async function refresh() {
     try {
-      const p = await api.get("/products?sort=sortOrder");
+      // para ADMIN, ?all=1 retorna todos; se não for admin, volta só ativos (ok).
+      const p = await api.get("/products?sort=sortOrder&all=1");
       setList(p.data);
     } catch (e: any) {
       console.error(e);
@@ -61,7 +109,6 @@ export default function Dashboard() {
   }
 
   async function save() {
-    // validações simples
     const priceNum = parseFloat(String(form.price).replace(",", "."));
     if (!(priceNum > 0)) {
       toast.error("Price must be a positive number (USD).");
@@ -72,8 +119,6 @@ export default function Dashboard() {
       toast.error("Stock must be 0 or more.");
       return;
     }
-
-    // converte textarea -> array e só envia se tiver pelo menos 1
     const imgs = parseImages(form.imagesText);
 
     setLoading(true);
@@ -85,11 +130,11 @@ export default function Dashboard() {
         stock: stockNum,
         active: !!form.active,
         packageSize: form.packageSize?.trim() || undefined,
-        pdfUrl: form.pdfUrl?.trim() || undefined, // aceita "/catalog/..." ou http(s)
+        pdfUrl: form.pdfUrl?.trim() || undefined,
         imageUrl: form.imageUrl?.trim() || undefined,
-        categoryId: form.categoryId || undefined, // enviar a FILHA
+        categoryId: form.categoryId || undefined,
       };
-      if (imgs.length > 0) payload.images = imgs; // <<< EVITA ENVIAR []
+      if (imgs.length > 0) payload.images = imgs;
 
       if (editing) {
         await api.put(`/products/${editing}`, payload);
@@ -104,24 +149,49 @@ export default function Dashboard() {
       await refresh();
     } catch (e: any) {
       console.error(e);
-      toast.error(
-        e?.response?.data?.error ||
-          "Failed to save product (check token, CORS, fields)"
-      );
+      toast.error(e?.response?.data?.error || "Failed to save product");
     } finally {
       setLoading(false);
     }
   }
 
-  async function remove(id: string) {
-    if (!confirm("Delete this product?")) return;
+  async function archive(id: string) {
     try {
-      await api.delete(`/products/${id}`);
-      toast.success("Deleted");
+      await api.patch(`/products/${id}/archive`, {});
+      toast.success("Archived");
       await refresh();
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.response?.data?.error || "Failed to delete");
+      toast.error(e?.response?.data?.error || "Failed to archive");
+    }
+  }
+  async function unarchive(id: string) {
+    try {
+      await api.patch(`/products/${id}/unarchive`, {});
+      toast.success("Unarchived");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to unarchive");
+    }
+  }
+
+  async function hardDelete(id: string, name: string) {
+    const sure = prompt(
+      `Type the product name to confirm hard delete:\n${name}`
+    );
+    if (sure !== name) return;
+    try {
+      await api.delete(`/products/${id}/hard`);
+      toast.success("Deleted permanently");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      const msg =
+        e?.response?.status === 409
+          ? "Product has related orders. Archive instead."
+          : e?.response?.data?.error || "Failed to hard delete";
+      toast.error(msg);
     }
   }
 
@@ -159,9 +229,90 @@ export default function Dashboard() {
     });
   }
 
+  function openSale(p: Product) {
+    setSale({
+      productId: p.id,
+      title: "Sale",
+      mode: "percent",
+      percentOff: "10",
+      priceOff: "",
+      startsAt: defaultStartLocal(),
+      endsAt: defaultEndLocal(),
+      saving: false,
+    });
+  }
+  function closeSale() {
+    setSale((s) => ({ ...s, productId: null }));
+  }
+  async function saveSale() {
+    if (!sale.productId) return;
+    // validação
+    if (sale.mode === "percent" && !(parseInt(sale.percentOff, 10) > 0)) {
+      toast.error("PercentOff must be >= 1");
+      return;
+    }
+    if (sale.mode === "price" && !(parseFloat(sale.priceOff) > 0)) {
+      toast.error("PriceOff must be > 0");
+      return;
+    }
+    const starts = new Date(sale.startsAt);
+    const ends = new Date(sale.endsAt);
+    if (!(starts < ends)) {
+      toast.error("Start must be before end");
+      return;
+    }
+
+    setSale((s) => ({ ...s, saving: true }));
+    try {
+      const payload: any = {
+        title: sale.title || "Sale",
+        startsAt: starts.toISOString(),
+        endsAt: ends.toISOString(),
+        active: true,
+      };
+      if (sale.mode === "percent") {
+        payload.percentOff = parseInt(sale.percentOff, 10);
+      } else {
+        payload.priceOff = parseFloat(sale.priceOff);
+      }
+
+      await api.put(`/products/${sale.productId}/sale`, payload);
+      toast.success("Sale scheduled");
+      closeSale();
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to schedule sale");
+    } finally {
+      setSale((s) => ({ ...s, saving: false }));
+    }
+  }
+
+  // filtra na UI (já buscamos all=1)
+  const visible = list.filter((p) => {
+    if (show === "all") return true;
+    if (show === "active") return p.active;
+    return !p.active; // archived
+  });
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Admin — Products</h1>
+      <div className="flex items-end justify-between">
+        <h1 className="text-2xl font-bold">Admin — Products</h1>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm">Show:</label>
+          <select
+            className="rounded border px-2 py-1 text-sm"
+            value={show}
+            onChange={(e) => setShow(e.target.value as ShowFilter)}
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+      </div>
 
       {/* Form */}
       <div className="space-y-3 rounded-xl border bg-white p-4">
@@ -316,7 +467,7 @@ export default function Dashboard() {
               </p>
             </div>
 
-            {/* Categorias (Dropdown com Seed + New dentro do componente) */}
+            {/* Categorias */}
             <div className="md:col-span-2">
               <CategoryPicker
                 parentId={form.categoryParentId}
@@ -391,7 +542,7 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {list.map((p) => (
+            {visible.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="px-3 py-2">
                   <div className="inline-flex items-center gap-1">
@@ -430,26 +581,55 @@ export default function Dashboard() {
                 </td>
                 <td className="px-3 py-2">${p.price.toFixed(2)}</td>
                 <td className="px-3 py-2">{p.stock}</td>
-                <td className="px-3 py-2">{p.active ? "Yes" : "No"}</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-2">
+                  {p.active ? (
+                    "Yes"
+                  ) : (
+                    <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs">
+                      Archived
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => startEdit(p)}
                       className="rounded border px-2 py-1"
                     >
                       Edit
                     </button>
+                    {p.active ? (
+                      <button
+                        onClick={() => archive(p.id)}
+                        className="rounded border px-2 py-1"
+                      >
+                        Archive
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => unarchive(p.id)}
+                        className="rounded border px-2 py-1"
+                      >
+                        Unarchive
+                      </button>
+                    )}
                     <button
-                      onClick={() => remove(p.id)}
+                      onClick={() => openSale(p)}
+                      className="rounded border px-2 py-1"
+                    >
+                      Schedule sale
+                    </button>
+                    <button
+                      onClick={() => hardDelete(p.id, p.name)}
                       className="rounded border px-2 py-1 text-red-600"
                     >
-                      Delete
+                      Delete permanently
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {list.length === 0 && (
+            {visible.length === 0 && (
               <tr>
                 <td className="px-3 py-3 text-neutral-500" colSpan={7}>
                   No products found.
@@ -459,6 +639,136 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal simples para Sale */}
+      {sale.productId && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Schedule sale</h3>
+              <button
+                onClick={closeSale}
+                className="rounded px-2 py-1 text-sm hover:bg-neutral-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Title</label>
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={sale.title}
+                  onChange={(e) =>
+                    setSale((s) => ({ ...s, title: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={sale.mode === "percent"}
+                    onChange={() => setSale((s) => ({ ...s, mode: "percent" }))}
+                  />
+                  Percent off
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={sale.mode === "price"}
+                    onChange={() => setSale((s) => ({ ...s, mode: "price" }))}
+                  />
+                  Price off (USD)
+                </label>
+              </div>
+
+              {sale.mode === "percent" ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Percent *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    step={1}
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    value={sale.percentOff}
+                    onChange={(e) =>
+                      setSale((s) => ({ ...s, percentOff: e.target.value }))
+                    }
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Price off (USD) *
+                  </label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="0.01"
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    value={sale.priceOff}
+                    onChange={(e) =>
+                      setSale((s) => ({ ...s, priceOff: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Starts at *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    value={sale.startsAt}
+                    onChange={(e) =>
+                      setSale((s) => ({ ...s, startsAt: e.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Ends at *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    value={sale.endsAt}
+                    onChange={(e) =>
+                      setSale((s) => ({ ...s, endsAt: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={saveSale}
+                  disabled={sale.saving}
+                  className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {sale.saving ? "Scheduling…" : "Schedule"}
+                </button>
+                <button
+                  onClick={closeSale}
+                  className="rounded border px-4 py-2 text-sm"
+                  disabled={sale.saving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
