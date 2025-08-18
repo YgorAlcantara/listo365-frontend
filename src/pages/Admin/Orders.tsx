@@ -1,3 +1,4 @@
+// src/pages/Admin/Orders.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/services/api";
 import type { OrderInquiry, OrderItem, OrderStatus, Page } from "@/types";
@@ -34,13 +35,21 @@ function fmtDate(s?: string) {
   const d = new Date(s);
   return d.toLocaleString();
 }
+
 function fmtMoney(n?: number) {
-  if (typeof n !== "number") return "—";
+  if (typeof n !== "number" || Number.isNaN(n)) return "—";
   return `$${n.toFixed(2)}`;
 }
+
+// Prisma pode retornar Decimal como string -> convertemos com segurança
+function numberish(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function sumItems(items: OrderItem[]) {
   return items.reduce(
-    (acc, it) => acc + it.quantity * (Number(it.unitPrice) || 0),
+    (acc, it) => acc + it.quantity * numberish(it.unitPrice),
     0
   );
 }
@@ -104,9 +113,10 @@ export default function AdminOrders() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, page]);
 
-  // open detail when openId changes
+  // abre/atualiza detalhe quando openId mudar
   useEffect(() => {
     if (openId) fetchDetail(openId);
+    else setDetail(null);
   }, [openId]);
 
   function onSearch(e: React.FormEvent) {
@@ -117,7 +127,6 @@ export default function AdminOrders() {
 
   async function changeStatus(next: OrderStatus) {
     if (!detail) return;
-    // avisos sobre estoque
     if (next === "COMPLETED") {
       const ok = confirm(
         "Mark this order as COMPLETED?\nThis will decrement product stock based on item quantities."
@@ -219,8 +228,11 @@ export default function AdminOrders() {
           placeholder="Search by id, customer, email, phone…"
           className="w-80 max-w-full rounded border px-3 py-2 text-sm"
         />
-        <button className="rounded bg-neutral-900 px-3 py-2 text-sm text-white">
-          Search
+        <button
+          className="rounded bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+          disabled={loading}
+        >
+          {loading ? "Loading…" : "Search"}
         </button>
       </form>
 
@@ -267,7 +279,7 @@ export default function AdminOrders() {
             {data.rows.length === 0 && (
               <tr>
                 <td className="px-3 py-6 text-neutral-500" colSpan={6}>
-                  No orders found.
+                  {loading ? "Loading…" : "No orders found."}
                 </td>
               </tr>
             )}
@@ -378,11 +390,11 @@ export default function AdminOrders() {
                       </div>
                       <div className="text-xs text-neutral-500">
                         Qty: {it.quantity} · Unit:{" "}
-                        {fmtMoney(Number(it.unitPrice))}
+                        {fmtMoney(numberish(it.unitPrice))}
                       </div>
                     </div>
                     <div className="font-medium">
-                      {fmtMoney(it.quantity * (Number(it.unitPrice) || 0))}
+                      {fmtMoney(it.quantity * numberish(it.unitPrice))}
                     </div>
                   </div>
                 ))}
