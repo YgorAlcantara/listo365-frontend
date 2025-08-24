@@ -1,6 +1,6 @@
-import { Navigate } from 'react-router-dom';
-import { isAuthed } from '@/services/auth';
+import { Navigate, Outlet } from "react-router-dom";
+import { isAuthed } from "@/services/auth";
 
-export default function PrivateRoute({ children }: { children: JSX.Element }) {
-  return isAuthed() ? children : <Navigate to="/admin/login" replace />;
+export default function PrivateRoute() {
+  return isAuthed() ? <Outlet /> : <Navigate to="/admin/login" replace />;
 }

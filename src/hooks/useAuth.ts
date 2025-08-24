@@ -1,22 +1,22 @@
-import { useEffect, useState } from 'react';
-
-const TOKEN_KEY = 'listo365.token';
+import { useEffect, useState } from "react";
+import {
+  getToken as _get,
+  setToken as _set,
+  clearToken as _clear,
+} from "@/services/auth";
 
 export function useAuth() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
 
-  useEffect(() => {
-    setToken(localStorage.getItem(TOKEN_KEY));
-  }, []);
+  useEffect(() => setTokenState(_get()), []);
 
   const save = (t: string) => {
-    localStorage.setItem(TOKEN_KEY, t);
-    setToken(t);
+    _set(t);
+    setTokenState(t);
   };
-
   const clear = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+    _clear();
+    setTokenState(null);
   };
 
   return { token, save, clear };
