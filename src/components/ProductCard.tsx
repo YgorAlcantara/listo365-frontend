@@ -1,120 +1,95 @@
-import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
-import { useCart } from "@/components/cart/CartProvider";
-import { fmtMoneyUSD, toNumberOrNull } from "@/utils/money";
-import { parseVariantsFromPackageSize } from "@/utils/product";
+import { motion } from 'framer-motion';
+import { useCart } from '@/components/cart/CartProvider';
+import { money } from '@/components/utils';
+import { Link } from 'react-router-dom';
 
+type VariantLite = { id: string; name: string; price: number; stock: number; active?: boolean; };
 type Props = {
   id: string;
+  slug: string;
   name: string;
   description: string;
-  price?: number | string | null; // fallback
+  price: number;
   images?: string[];
   imageUrl?: string | null;
-  packageSize?: string | null; // contém as variantes em JSON ou legado
+  packageSize?: string | null;
   pdfUrl?: string | null;
   stock?: number;
+  visibility?: { price?: boolean };
+  variants?: VariantLite[];
 };
 
 export function ProductCard({
-  id,
-  name,
-  description,
-  price,
-  images,
-  imageUrl,
-  packageSize,
-  pdfUrl,
-  stock,
+  id, slug, name, description, price, images, imageUrl, packageSize, pdfUrl, stock, visibility, variants,
 }: Props) {
   const { add } = useCart();
-
-  const variants = useMemo(
-    () => parseVariantsFromPackageSize(packageSize),
-    [packageSize]
-  );
-
-  const [selIdx, setSelIdx] = useState(0);
-  const sel = variants[selIdx];
-
   const cover =
     (images && images.length > 0 ? images[0] : undefined) ??
     imageUrl ??
-    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
-  const outOfStock = typeof stock === "number" && stock <= 0;
+  const outOfStock = typeof stock === 'number' && stock <= 0;
+  const hasVariants = (variants?.length ?? 0) > 0;
+  const minPrice = hasVariants ? Math.min(...(variants || []).map(v => v.price)) : price;
 
-  // preço efetivo = preço da variante OU preço do produto OU null
-  const effPrice = toNumberOrNull(sel?.price) ?? toNumberOrNull(price) ?? null;
-
-  function addToCart() {
-    const displayName = sel?.label ? `${name} (${sel.label})` : name;
-    add(
-      {
+  function quickAdd() {
+    if (hasVariants) {
+      const v = variants![0];
+      const priceToStore = visibility?.price === false ? null : v.price;
+      add({
         id,
-        name: displayName,
-        price: effPrice, // pode ser null => precisa cotação
+        variantId: v.id,
+        variantName: v.name,
+        name: `${name} — ${v.name}`,
+        price: priceToStore,
         imageUrl: cover,
-        variant: sel?.label,
-        needsQuote: effPrice === null,
-      },
-      1
-    );
+      }, 1);
+    } else {
+      const priceToStore = visibility?.price === false ? null : price;
+      add({ id, name, price: priceToStore, imageUrl: cover }, 1);
+    }
   }
 
   return (
-    <motion.article
-      whileHover={{ y: -2 }}
-      className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition"
-    >
-      <div
-        className="relative aspect-[4/3] w-full bg-neutral-100"
-        style={{
-          backgroundImage: `url(${cover})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
+    <motion.article whileHover={{ y: -2 }} className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition">
+      <div className="relative aspect-[4/3] w-full bg-neutral-100"
+        style={{ backgroundImage: `url(${cover})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
       <div className="space-y-2 p-4">
         <h3 className="text-lg font-semibold leading-tight">{name}</h3>
 
-        {/* seletor de variantes */}
-        {variants.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-neutral-600">Size:</label>
-            <select
-              className="rounded border px-2 py-1 text-xs"
-              value={selIdx}
-              onChange={(e) => setSelIdx(Number(e.target.value))}
-            >
-              {variants.map((v, i) => (
-                <option key={`${v.label}-${i}`} value={i}>
-                  {v.label}
-                  {v.price != null
-                    ? ` — ${fmtMoneyUSD(v.price)}`
-                    : " — price on request"}
-                </option>
-              ))}
-            </select>
-          </div>
+        {packageSize ? (
+          <div className="text-xs text-neutral-500">Size: {packageSize}</div>
         ) : null}
 
         <p className="line-clamp-2 text-sm text-neutral-600">{description}</p>
 
         <div className="flex items-center justify-between">
-          <span className="text-base font-bold">
-            {effPrice === null ? "Request a quote" : fmtMoneyUSD(effPrice)}
-          </span>
+          {visibility?.price === false ? (
+            <span className="text-sm font-medium text-neutral-500">Request a quote</span>
+          ) : (
+            <span className="text-base font-bold">
+              {hasVariants ? `From ${money.format(minPrice)}` : money.format(price)}
+            </span>
+          )}
 
-          <button
-            onClick={addToCart}
-            className="rounded-lg border px-3 py-2 text-sm font-medium hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-50"
-            disabled={outOfStock}
-            aria-disabled={outOfStock}
-            title={outOfStock ? "Out of stock" : "Add"}
-          >
-            {outOfStock ? "Out of stock" : "Add"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={quickAdd}
+              className="rounded-lg border px-3 py-2 text-sm font-medium hover:border-orange-600 hover:text-orange-700 disabled:opacity-50"
+              disabled={outOfStock}
+              aria-disabled={outOfStock}
+              title={outOfStock ? 'Out of stock' : 'Add'}
+            >
+              {outOfStock ? 'Out of stock' : 'Add'}
+            </button>
+
+            <Link
+              to={`/p/${slug}`}
+              className="rounded-lg border px-3 py-2 text-sm hover:border-neutral-700"
+            >
+              View
+            </Link>
+          </div>
         </div>
 
         {pdfUrl ? (
@@ -123,7 +98,7 @@ export function ProductCard({
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-800"
+              className="text-xs text-orange-700 underline decoration-dotted underline-offset-2 hover:text-orange-800"
             >
               View datasheet (PDF)
             </a>

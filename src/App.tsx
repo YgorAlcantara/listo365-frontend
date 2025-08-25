@@ -18,6 +18,7 @@ import Dashboard from "@/pages/Admin/Dashboard";
 import AdminOrders from "@/pages/Admin/Orders";
 import AdminOrderDetail from "@/pages/Admin/AdminOrderDetail";
 import AdminLayout from "@/pages/Admin/AdminLayout";
+import ProductPage from "@/pages/ProductPage";
 
 import PrivateRoute from "@/components/PrivateRoute";
 import { Toaster } from "react-hot-toast";
@@ -52,6 +53,7 @@ export default function App() {
           {/* ROTAS PÚBLICAS com layout público */}
           <Route element={<PublicShell />}>
             <Route path="/" element={<Home />} />
+            <Route path="/p/:slug" element={<ProductPage />} />
             <Route path="/checkout" element={<Checkout />} />
           </Route>
 

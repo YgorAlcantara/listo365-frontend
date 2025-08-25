@@ -14,9 +14,14 @@ export type ProductVisibility = {
   description: boolean;
 };
 
-export type Variant = {
-  label: string; // "1 gal", "5 gal", ...
-  price?: number | null; // preço da variante (ou null para cotação)
+export type ProductVariant = {
+  id: string;
+  name: string;         // ex.: "1 gal", "32 oz"
+  price: number;        // preço da variante
+  stock: number;
+  active: boolean;
+  sortOrder: number;
+  sku?: string;
 };
 
 export type Product = {
@@ -24,11 +29,11 @@ export type Product = {
   name: string;
   slug: string;
   description: string;
-  price: number; // preço base (fallback)
+  price: number; // baseline (para lista/SEO); pode ser 0
   active: boolean;
   stock: number;
   sortOrder: number;
-  packageSize?: string | null; // JSON de variantes OU texto legado "1 gal | 5 gal"
+  packageSize?: string | null;
   pdfUrl?: string | null;
   imageUrl?: string | null;
   images: string[];
@@ -41,8 +46,8 @@ export type Product = {
     endsAt: string;
     salePrice: number;
   } | null;
-
-  visibility?: ProductVisibility; // mapeado das flags do backend
+  visibility?: ProductVisibility;
+  variants?: ProductVariant[];
 };
 
 // ---------- CUSTOMERS / ADDRESSES ----------
@@ -82,8 +87,10 @@ export type OrderItem = {
   orderId: string;
   productId: string;
   quantity: number;
-  unitPrice: number; // se seu backend retorna Decimal/string, pode usar: number | string
+  unitPrice: number;
   product?: { id: string; name: string; slug: string; stock?: number };
+  variantId?: string | null;
+  variantName?: string | null;
 };
 
 export type OrderInquiry = {
