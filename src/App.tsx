@@ -1,15 +1,30 @@
+// src/App.tsx
 import { useEffect } from "react";
-import { BrowserRouter, Route, Routes, Outlet } from "react-router-dom";
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  Outlet,
+  Navigate,
+} from "react-router-dom";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { Header } from "@/components/Header";
+
 import Home from "@/pages/Home";
 import Checkout from "@/pages/Checkout";
+
 import Login from "@/pages/Admin/Login";
 import Dashboard from "@/pages/Admin/Dashboard";
+import AdminOrders from "@/pages/Admin/Orders";
+import AdminOrderDetail from "@/pages/Admin/AdminOrderDetail";
+import AdminLayout from "@/pages/Admin/AdminLayout";
+
 import PrivateRoute from "@/components/PrivateRoute";
 import { Toaster } from "react-hot-toast";
-import AdminOrders from "@/pages/Admin/Orders";
-import AdminLayout from "@/pages/Admin/AdminLayout";
+
+// Se tiver estas páginas criadas, importe e descomente as rotas:
+import Categories from "@/pages/Admin/Categories";
+import Promotions from "@/pages/Admin/Promotions";
 
 // Layout público: Header + container padrão
 function PublicShell() {
@@ -43,7 +58,7 @@ export default function App() {
           {/* Login do Admin (sem Header público) */}
           <Route path="/admin/login" element={<Login />} />
 
-          {/* ROTAS ADMIN protegidas com PrivateRoute e usando AdminLayout */}
+          {/* ROTAS ADMIN protegidas e com layout do admin */}
           <Route
             path="/admin"
             element={
@@ -54,13 +69,14 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="orders" element={<AdminOrders />} />
-            {/* Quando criar o detalhe do pedido, descomente: */}
-            {/* <Route path="orders/:id" element={<AdminOrderDetail />} /> */}
-            {/* Espaço pra futuras telas: categories, promotions, customers... */}
+            <Route path="orders/:id" element={<AdminOrderDetail />} />
+            {/* Descomente se existirem as páginas */}
+            <Route path="categories" element={<Categories />} />
+            <Route path="promotions" element={<Promotions />} />
           </Route>
 
-          {/* Fallback opcional: redirecionar 404 para Home ou criar uma página NotFound */}
-          {/* <Route path="*" element={<NotFound />} /> */}
+          {/* Fallback 404 -> Home (ou crie uma NotFound) */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         <Toaster position="top-right" />

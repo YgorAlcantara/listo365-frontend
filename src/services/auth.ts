@@ -1,6 +1,7 @@
+// src/services/auth.ts
 const KEY = "listo365.token";
 
-export function getToken(): string {
+export function getToken() {
   return localStorage.getItem(KEY) || "";
 }
 export function setToken(t: string) {

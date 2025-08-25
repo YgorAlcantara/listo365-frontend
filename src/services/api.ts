@@ -1,15 +1,27 @@
+// src/services/api.ts
 import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
-const TOKEN_KEY = "listo365.token";
+import { getToken, clearToken } from "./auth";
 
 export const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:4000",
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const t = localStorage.getItem(TOKEN_KEY);
-  if (t) config.headers.Authorization = `Bearer ${t}`;
-  return config;
+api.interceptors.request.use((cfg) => {
+  const t = getToken();
+  if (t) cfg.headers.Authorization = `Bearer ${t}`;
+  return cfg;
 });
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err?.response?.status === 401) {
+      clearToken();
+      if (!location.pathname.startsWith("/admin/login")) {
+        location.replace("/admin/login");
+      }
+    }
+    return Promise.reject(err);
+  }
+);
