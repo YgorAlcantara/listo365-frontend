@@ -4,7 +4,17 @@ import type { Product, ProductVariant, ProductVisibility } from "@/types";
 import CategoryPicker from "@/components/admin/CategoryPicker";
 import { toast } from "react-hot-toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEye, faEyeSlash, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
+import {
+  faEye,
+  faEyeSlash,
+  faPlus,
+  faTrash,
+  faArrowUp,
+  faArrowDown,
+  faBoxArchive,
+  faBoxOpen,
+  faTrashCan,
+} from "@fortawesome/free-solid-svg-icons";
 
 type Form = {
   name: string;
@@ -19,7 +29,6 @@ type Form = {
   categoryParentId?: string;
   categoryId?: string;
   imagesText: string;
-  // visibilidade
   visibility: ProductVisibility;
 };
 
@@ -50,7 +59,7 @@ export default function Dashboard() {
     categoryId: "",
     imagesText: "",
     visibility: {
-      price: false,          // padrão: oculto (como você queria)
+      price: false, // padrão: oculto
       packageSize: true,
       pdf: true,
       images: true,
@@ -66,7 +75,10 @@ export default function Dashboard() {
   const [show, setShow] = useState<ShowFilter>("active");
 
   function parseImages(text: string) {
-    return text.split("\n").map((s) => s.trim()).filter(Boolean);
+    return text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   async function refresh() {
@@ -78,7 +90,9 @@ export default function Dashboard() {
       toast.error(e?.response?.data?.error || "Failed to load products");
     }
   }
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+  }, []);
 
   function startEdit(p: Product) {
     setEditing(p.id);
@@ -125,14 +139,22 @@ export default function Dashboard() {
   }
 
   function addVariant() {
-    setVariants(v => [...v, { name: "", price: "", stock: "0", sortOrder: (v.length+1)*10, active: true }]);
+    setVariants((v) => [
+      ...v,
+      {
+        name: "",
+        price: "",
+        stock: "0",
+        sortOrder: (v.length + 1) * 10,
+        active: true,
+      },
+    ]);
   }
   function rmVariant(idx: number) {
-    setVariants(v => v.filter((_, i) => i !== idx));
+    setVariants((v) => v.filter((_, i) => i !== idx));
   }
 
   async function save() {
-    // baseline pode ser 0 (visível ou não)
     const priceNum = parseFloat(String(form.price).replace(",", "."));
     if (Number.isNaN(priceNum) || priceNum < 0) {
       toast.error("Baseline price must be >= 0.");
@@ -145,7 +167,7 @@ export default function Dashboard() {
     }
     const imgs = parseImages(form.imagesText);
     const variantsPayload = variants
-      .map(v => ({
+      .map((v) => ({
         ...(v.id ? { id: v.id } : {}),
         name: v.name.trim(),
         price: parseFloat(String(v.price).replace(",", ".")),
@@ -154,7 +176,7 @@ export default function Dashboard() {
         active: !!v.active,
         sku: v.sku?.trim() || undefined,
       }))
-      .filter(v => v.name && (v.price ?? 0) >= 0); // aceita 0 também, se quiser
+      .filter((v) => v.name && (v.price ?? 0) >= 0);
 
     setLoading(true);
     try {
@@ -198,7 +220,61 @@ export default function Dashboard() {
     }
   }
 
-  const visible = list.filter((p) => (show === "all" ? true : show === "active" ? p.active : !p.active));
+  async function archive(id: string) {
+    try {
+      await api.patch(`/products/${id}/archive`, {});
+      toast.success("Archived");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to archive");
+    }
+  }
+  async function unarchive(id: string) {
+    try {
+      await api.patch(`/products/${id}/unarchive`, {});
+      toast.success("Unarchived");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to unarchive");
+    }
+  }
+  async function hardDelete(id: string, name: string) {
+    const sure = prompt(
+      `Type the product name to confirm hard delete:\n${name}`
+    );
+    if (sure !== name) return;
+    try {
+      await api.delete(`/products/${id}/hard`);
+      toast.success("Deleted permanently");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      const msg =
+        e?.response?.status === 409
+          ? "Product has related orders. Archive instead."
+          : e?.response?.data?.error || "Failed to hard delete";
+      toast.error(msg);
+    }
+  }
+  async function move(id: string, dir: -1 | 1) {
+    const p = list.find((x) => x.id === id);
+    if (!p) return;
+    try {
+      await api.patch(`/products/${id}/sort-order`, {
+        sortOrder: (p.sortOrder || 0) + dir * 10,
+      });
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to reorder");
+    }
+  }
+
+  const visible = list.filter((p) =>
+    show === "all" ? true : show === "active" ? p.active : !p.active
+  );
 
   return (
     <div className="space-y-6">
@@ -240,13 +316,17 @@ export default function Dashboard() {
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="Product name"
                 value={form.name}
-                onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, name: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Baseline price (USD)</label>
+              <label className="mb-1 block text-sm font-medium">
+                Baseline price (USD)
+              </label>
               <input
                 type="number"
                 inputMode="decimal"
@@ -255,7 +335,9 @@ export default function Dashboard() {
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="e.g., 19.99 (can be 0 when using variants)"
                 value={form.price}
-                onChange={(e) => setForm((v) => ({ ...v, price: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, price: e.target.value }))
+                }
                 disabled={loading}
               />
               <p className="mt-1 text-[11px] text-neutral-500">
@@ -274,59 +356,79 @@ export default function Dashboard() {
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="e.g., 12"
                 value={form.stock}
-                onChange={(e) => setForm((v) => ({ ...v, stock: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, stock: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Package size</label>
+              <label className="mb-1 block text-sm font-medium">
+                Package size
+              </label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="e.g., 1 gal / 32 oz"
                 value={form.packageSize}
-                onChange={(e) => setForm((v) => ({ ...v, packageSize: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, packageSize: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">PDF URL (datasheet)</label>
+              <label className="mb-1 block text-sm font-medium">
+                PDF URL (datasheet)
+              </label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="/catalog/slug/datasheet.pdf or https://..."
                 value={form.pdfUrl}
-                onChange={(e) => setForm((v) => ({ ...v, pdfUrl: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, pdfUrl: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Legacy cover image (optional)</label>
+              <label className="mb-1 block text-sm font-medium">
+                Legacy cover image (optional)
+              </label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="/catalog/slug/1.jpg or https://..."
                 value={form.imageUrl}
-                onChange={(e) => setForm((v) => ({ ...v, imageUrl: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, imageUrl: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">Description *</label>
+              <label className="mb-1 block text-sm font-medium">
+                Description *
+              </label>
               <textarea
                 required
                 rows={3}
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="Short description"
                 value={form.description}
-                onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, description: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">Images (one URL per line)</label>
+              <label className="mb-1 block text-sm font-medium">
+                Images (one URL per line)
+              </label>
               <textarea
                 rows={4}
                 className="w-full rounded border px-3 py-2 text-sm font-mono"
@@ -335,10 +437,14 @@ export default function Dashboard() {
 /catalog/slug/3.jpg
 /catalog/slug/4.jpg`}
                 value={form.imagesText}
-                onChange={(e) => setForm((v) => ({ ...v, imagesText: e.target.value }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, imagesText: e.target.value }))
+                }
                 disabled={loading}
               />
-              <p className="mt-1 text-[11px] text-neutral-500">First image becomes the cover.</p>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                First image becomes the cover.
+              </p>
             </div>
 
             {/* Categorias */}
@@ -347,7 +453,11 @@ export default function Dashboard() {
                 parentId={form.categoryParentId}
                 subcategoryId={form.categoryId}
                 onChangeParent={(id) =>
-                  setForm((v) => ({ ...v, categoryParentId: id, categoryId: undefined }))
+                  setForm((v) => ({
+                    ...v,
+                    categoryParentId: id,
+                    categoryId: undefined,
+                  }))
                 }
                 onChangeSub={(id) => setForm((v) => ({ ...v, categoryId: id }))}
               />
@@ -357,7 +467,9 @@ export default function Dashboard() {
               <input
                 type="checkbox"
                 checked={form.active}
-                onChange={(e) => setForm((v) => ({ ...v, active: e.target.checked }))}
+                onChange={(e) =>
+                  setForm((v) => ({ ...v, active: e.target.checked }))
+                }
                 disabled={loading}
               />
               <span className="text-sm">Active</span>
@@ -366,21 +478,30 @@ export default function Dashboard() {
 
           {/* Visibilidade */}
           <div className="rounded-2xl border p-3 space-y-2">
-            <div className="text-sm font-semibold mb-1">Visibility</div>
+            <div className="text-sm font-semibold mb-1">
+              Visibility (public site)
+            </div>
             <div className="flex flex-wrap gap-2">
-              {([
-                ["price", "Price"],
-                ["packageSize", "Package size"],
-                ["pdf", "PDF"],
-                ["images", "Images"],
-                ["description", "Description"],
-              ] as Array<[keyof ProductVisibility, string]>).map(([k, label]) => {
+              {(
+                [
+                  ["price", "Price"],
+                  ["packageSize", "Package size"],
+                  ["pdf", "PDF"],
+                  ["images", "Images"],
+                  ["description", "Description"],
+                ] as Array<[keyof ProductVisibility, string]>
+              ).map(([k, label]) => {
                 const on = form.visibility[k];
                 return (
                   <button
                     key={k}
                     type="button"
-                    onClick={() => setForm(v => ({ ...v, visibility: { ...v.visibility, [k]: !on } }))}
+                    onClick={() =>
+                      setForm((v) => ({
+                        ...v,
+                        visibility: { ...v.visibility, [k]: !on },
+                      }))
+                    }
                     className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
                   >
                     <FontAwesomeIcon icon={on ? faEye : faEyeSlash} />
@@ -405,27 +526,106 @@ export default function Dashboard() {
             </div>
 
             {variants.length === 0 && (
-              <p className="text-sm text-neutral-500">No variants. You can sell a single-price product or add options here.</p>
+              <p className="text-sm text-neutral-500">
+                No variants. You can sell a single-price product or add options
+                here.
+              </p>
             )}
 
             {variants.map((v, i) => (
-              <div key={i} className="grid gap-2 md:grid-cols-[1fr_140px_120px_120px_110px_100px]">
-                <input className="rounded border px-3 py-2 text-sm" placeholder="Name (e.g., 1 gal / 32 oz)"
-                  value={v.name} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, name:e.target.value}:x))} />
-                <input className="rounded border px-3 py-2 text-sm" placeholder="Price" type="number" step="0.01" min={0}
-                  value={v.price} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, price:e.target.value}:x))}/>
-                <input className="rounded border px-3 py-2 text-sm" placeholder="Stock" type="number" step="1" min={0}
-                  value={v.stock} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, stock:e.target.value}:x))}/>
-                <input className="rounded border px-3 py-2 text-sm" placeholder="Sort"
-                  value={v.sortOrder} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, sortOrder: Number(e.target.value) || 0}:x))}/>
-                <input className="rounded border px-3 py-2 text-sm" placeholder="SKU (optional)"
-                  value={v.sku||""} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, sku:e.target.value}:x))}/>
+              <div
+                key={i}
+                className="grid gap-2 md:grid-cols-[1fr_140px_120px_120px_110px_100px]"
+              >
+                <input
+                  className="rounded border px-3 py-2 text-sm"
+                  placeholder="Name (e.g., 1 gal / 32 oz)"
+                  value={v.name}
+                  onChange={(e) =>
+                    setVariants((a) =>
+                      a.map((x, idx) =>
+                        idx === i ? { ...x, name: e.target.value } : x
+                      )
+                    )
+                  }
+                />
+                <input
+                  className="rounded border px-3 py-2 text-sm"
+                  placeholder="Price"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={v.price}
+                  onChange={(e) =>
+                    setVariants((a) =>
+                      a.map((x, idx) =>
+                        idx === i ? { ...x, price: e.target.value } : x
+                      )
+                    )
+                  }
+                />
+                <input
+                  className="rounded border px-3 py-2 text-sm"
+                  placeholder="Stock"
+                  type="number"
+                  step="1"
+                  min={0}
+                  value={v.stock}
+                  onChange={(e) =>
+                    setVariants((a) =>
+                      a.map((x, idx) =>
+                        idx === i ? { ...x, stock: e.target.value } : x
+                      )
+                    )
+                  }
+                />
+                <input
+                  className="rounded border px-3 py-2 text-sm"
+                  placeholder="Sort"
+                  value={v.sortOrder}
+                  onChange={(e) =>
+                    setVariants((a) =>
+                      a.map((x, idx) =>
+                        idx === i
+                          ? { ...x, sortOrder: Number(e.target.value) || 0 }
+                          : x
+                      )
+                    )
+                  }
+                />
+                <input
+                  className="rounded border px-3 py-2 text-sm"
+                  placeholder="SKU (optional)"
+                  value={v.sku || ""}
+                  onChange={(e) =>
+                    setVariants((a) =>
+                      a.map((x, idx) =>
+                        idx === i ? { ...x, sku: e.target.value } : x
+                      )
+                    )
+                  }
+                />
                 <div className="flex items-center gap-2">
                   <label className="inline-flex items-center gap-1 text-sm">
-                    <input type="checkbox" checked={v.active} onChange={e => setVariants(a => a.map((x,idx)=> idx===i? {...x, active:e.target.checked}:x))}/>
+                    <input
+                      type="checkbox"
+                      checked={v.active}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, active: e.target.checked } : x
+                          )
+                        )
+                      }
+                    />
                     Active
                   </label>
-                  <button type="button" onClick={() => rmVariant(i)} className="rounded border px-2 py-1 text-sm text-red-600">
+                  <button
+                    type="button"
+                    onClick={() => rmVariant(i)}
+                    className="rounded border px-2 py-1 text-sm text-red-600"
+                    title="Remove variant"
+                  >
                     <FontAwesomeIcon icon={faTrash} />
                   </button>
                 </div>
@@ -439,7 +639,13 @@ export default function Dashboard() {
               disabled={loading}
               className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
             >
-              {editing ? (loading ? "Saving…" : "Save changes") : (loading ? "Creating…" : "Create")}
+              {editing
+                ? loading
+                  ? "Saving…"
+                  : "Save changes"
+                : loading
+                ? "Creating…"
+                : "Create"}
             </button>
             {editing && (
               <button
@@ -455,7 +661,7 @@ export default function Dashboard() {
         </form>
       </div>
 
-      {/* Table */}
+      {/* Tabela */}
       <div className="overflow-auto rounded-2xl border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
@@ -472,27 +678,101 @@ export default function Dashboard() {
           <tbody>
             {visible.map((p) => (
               <tr key={p.id} className="border-t">
-                <td className="px-3 py-2">{p.sortOrder}</td>
+                <td className="px-3 py-2">
+                  <div className="inline-flex items-center gap-1">
+                    <button
+                      onClick={() => move(p.id, -1)}
+                      className="rounded border px-2 py-1"
+                      title="Move up"
+                    >
+                      <FontAwesomeIcon icon={faArrowUp} />
+                    </button>
+                    <button
+                      onClick={() => move(p.id, +1)}
+                      className="rounded border px-2 py-1"
+                      title="Move down"
+                    >
+                      <FontAwesomeIcon icon={faArrowDown} />
+                    </button>
+                  </div>
+                </td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-neutral-500 line-clamp-2">{p.description}</div>
+                  <div className="text-xs text-neutral-500 line-clamp-2">
+                    {p.description}
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   {p.category ? (
                     <span className="text-xs">
-                      {p.category.parent ? `${p.category.parent.name} › ` : ""}{p.category.name}
+                      {p.category.parent ? `${p.category.parent.name} › ` : ""}
+                      {p.category.name}
                     </span>
-                  ) : <span className="text-xs text-neutral-400">—</span>}
+                  ) : (
+                    <span className="text-xs text-neutral-400">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
-                  {p.visibility?.price === false ? "—" : `$${Number(p.price ?? 0).toFixed(2)}`}
+                  <span className="inline-flex items-center gap-2">
+                    <span>${Number(p.price ?? 0).toFixed(2)}</span>
+                    <span
+                      className="text-neutral-400"
+                      title={
+                        p.visibility?.price === false
+                          ? "Hidden on site"
+                          : "Visible on site"
+                      }
+                    >
+                      <FontAwesomeIcon
+                        icon={
+                          p.visibility?.price === false ? faEyeSlash : faEye
+                        }
+                      />
+                    </span>
+                  </span>
                 </td>
                 <td className="px-3 py-2">{p.stock}</td>
-                <td className="px-3 py-2">{p.active ? "Yes" : <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs">Archived</span>}</td>
+                <td className="px-3 py-2">
+                  {p.active ? (
+                    "Yes"
+                  ) : (
+                    <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs">
+                      Archived
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => startEdit(p)} className="rounded border px-2 py-1">Edit</button>
-                    {/* Aqui você mantém Archive/Unarchive/Hard delete se já tem nas rotas */}
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="rounded border px-2 py-1"
+                    >
+                      Edit
+                    </button>
+                    {p.active ? (
+                      <button
+                        onClick={() => archive(p.id)}
+                        className="rounded border px-2 py-1"
+                        title="Archive"
+                      >
+                        <FontAwesomeIcon icon={faBoxArchive} /> Archive
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => unarchive(p.id)}
+                        className="rounded border px-2 py-1"
+                        title="Unarchive"
+                      >
+                        <FontAwesomeIcon icon={faBoxOpen} /> Unarchive
+                      </button>
+                    )}
+                    <button
+                      onClick={() => hardDelete(p.id, p.name)}
+                      className="rounded border px-2 py-1 text-red-600"
+                      title="Delete permanently"
+                    >
+                      <FontAwesomeIcon icon={faTrashCan} /> Delete
+                    </button>
                   </div>
                 </td>
               </tr>

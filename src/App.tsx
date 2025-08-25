@@ -53,8 +53,8 @@ export default function App() {
           {/* ROTAS PÚBLICAS com layout público */}
           <Route element={<PublicShell />}>
             <Route path="/" element={<Home />} />
-            <Route path="/p/:slug" element={<ProductPage />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/p/:slug" element={<ProductPage />} />
           </Route>
 
           {/* Login do Admin (sem Header público) */}

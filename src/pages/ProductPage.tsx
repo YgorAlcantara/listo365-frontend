@@ -1,207 +1,180 @@
 // src/pages/ProductPage.tsx
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { api } from "@/services/api";
-import { money } from "@/components/utils";
-import { useCart } from "@/components/cart/CartProvider";
-import { motion } from "framer-motion";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFilePdf, faChevronLeft } from "@fortawesome/free-solid-svg-icons";
 import type { Product, ProductVariant } from "@/types";
+import { useCart } from "@/components/cart/CartProvider";
+import { money } from "@/components/utils";
 
 export default function ProductPage() {
-  const { slug } = useParams();
+  const { slug } = useParams<{ slug: string }>();
   const { add } = useCart();
   const [p, setP] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sel, setSel] = useState<string | null>(null);
-  const [hero, setHero] = useState<string>("");
+  const [variantId, setVariantId] = useState<string | undefined>();
+  const [coverIdx, setCoverIdx] = useState(0);
 
   useEffect(() => {
-    (async () => {
+    let active = true;
+    async function load() {
       try {
-        const r = await api.get(`/products/slug/${slug}`);
-        const prod: Product = r.data;
-        setP(prod);
-        setSel(prod?.variants?.[0]?.id ?? null);
-        setHero(prod?.images?.[0] ?? prod?.imageUrl ?? "");
+        setLoading(true);
+        // detalhe por id OU slug
+        const r = await api.get(`/products/${encodeURIComponent(slug || "")}`);
+        if (!active) return;
+        setP(r.data as Product);
+        const act = (r.data?.variants || []).filter(
+          (v: ProductVariant) => v.active
+        );
+        if (act.length) setVariantId(act[0].id);
+        setCoverIdx(0);
+      } catch {
+        if (active) setP(null);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
-    })();
+    }
+    if (slug) load();
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
-  if (loading) return <div className="py-16 text-center">Loading…</div>;
-  if (!p) return <div className="py-16 text-center">Product not found.</div>;
+  if (loading) return <div className="py-10 text-center">Loading…</div>;
+  if (!p) return <div className="py-10 text-center">Product not found.</div>;
 
-  // ---- Daqui pra baixo "p" é não-nulo ----
-  const currentVariant: ProductVariant | null =
-    p.variants?.find((v) => v.id === sel) ?? null;
+  // 🔒 A partir daqui o TS sabe que "p" é Product
+  const product = p as Product;
 
-  const displayPrice =
-    (currentVariant ? currentVariant.price : undefined) ??
-    p.sale?.salePrice ??
-    p.price ??
-    0;
+  const images = product.images?.length
+    ? product.images
+    : product.imageUrl
+    ? [product.imageUrl]
+    : [];
+  const cover = images[coverIdx] ?? "";
+
+  const activeVariants = (product.variants || [])
+    .filter((v) => v.active)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  const selectedVariant = useMemo(
+    () => activeVariants.find((v) => v.id === variantId),
+    [activeVariants, variantId]
+  );
+
+  const priceVisible = product.visibility?.price !== false;
+  const numericPrice = selectedVariant ? selectedVariant.price : product.price;
+  const outOfStock = selectedVariant
+    ? selectedVariant.stock <= 0
+    : product.stock <= 0;
 
   function addToCart() {
-    // proteção extra para o TS e para runtime
-    if (!p) return;
-    const priceToStore = p.visibility?.price === false ? null : displayPrice;
-
-    if (currentVariant) {
-      add(
-        {
-          id: p.id,
-          variantId: currentVariant.id,
-          variantName: currentVariant.name,
-          name: `${p.name} — ${currentVariant.name}`,
-          price: p.visibility?.price === false ? null : currentVariant.price,
-          imageUrl: hero,
-        },
-        1
-      );
-    } else {
-      add(
-        { id: p.id, name: p.name, price: priceToStore, imageUrl: hero },
-        1
-      );
-    }
+    const cartId = `${product.id}::${selectedVariant?.id || "base"}`;
+    const displayName = selectedVariant?.name
+      ? `${product.name} — ${selectedVariant.name}`
+      : product.name;
+    const cartPrice = priceVisible ? numericPrice : null;
+    add(
+      {
+        id: cartId,
+        name: displayName,
+        price: cartPrice as any,
+        imageUrl: cover,
+      },
+      1
+    );
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-4">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-black"
-        >
-          <FontAwesomeIcon icon={faChevronLeft} /> Back
-        </Link>
-      </div>
-
+    <div className="mx-auto max-w-6xl py-6">
       <div className="grid gap-6 md:grid-cols-2">
-        {/* gallery */}
+        {/* Galeria */}
         <div className="space-y-3">
           <div
-            className="aspect-[4/3] rounded-2xl border bg-neutral-100"
+            className="aspect-[4/3] w-full rounded-2xl border bg-neutral-100"
             style={{
-              backgroundImage: `url(${hero})`,
+              backgroundImage: `url(${cover})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           />
-          {p.visibility?.images !== false && (p.images?.length ?? 0) > 1 && (
-            <div className="grid grid-cols-5 gap-2">
-              {p.images!.slice(0, 10).map((url, i) => (
+          {images.length > 1 && (
+            <div className="grid grid-cols-4 gap-2">
+              {images.slice(0, 8).map((src, i) => (
                 <button
                   key={i}
-                  onClick={() => setHero(url)}
-                  className={`aspect-square rounded-lg border bg-neutral-100 ${
-                    hero === url ? "ring-2 ring-orange-600" : ""
+                  onClick={() => setCoverIdx(i)}
+                  className={`aspect-[4/3] w-full rounded-lg border bg-neutral-100 ${
+                    coverIdx === i ? "ring-2 ring-orange-500" : ""
                   }`}
                   style={{
-                    backgroundImage: `url(${url})`,
+                    backgroundImage: `url(${src})`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }}
+                  title="Preview"
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* info */}
+        {/* Infos */}
         <div className="space-y-4">
-          <h1 className="text-3xl font-extrabold">
-            <span className="text-orange-600">Listo</span>
-            <span className="text-black">365</span> — {p.name}
-          </h1>
+          <h1 className="text-2xl font-bold">{product.name}</h1>
 
-          {p.visibility?.description !== false && (
-            <p className="text-neutral-700 leading-relaxed">{p.description}</p>
-          )}
-
-          {/* Variants */}
-          {p.variants && p.variants.length > 0 && (
-            <div>
-              <div className="mb-1 text-sm font-medium">Size / Option</div>
-              <div className="flex flex-wrap gap-2">
-                {p.variants.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => setSel(v.id)}
-                    className={`rounded-lg border px-3 py-2 text-sm ${
-                      sel === v.id
-                        ? "border-orange-600 text-orange-700 bg-orange-50"
-                        : "hover:border-neutral-700"
-                    }`}
-                  >
-                    {v.name} —{" "}
-                    {p.visibility?.price === false
-                      ? "See price at checkout"
-                      : money.format(v.price)}
-                  </button>
-                ))}
-              </div>
+          {product.packageSize && (
+            <div className="text-sm text-neutral-600">
+              Package size: {product.packageSize}
             </div>
           )}
 
-          {/* Price */}
-          <div className="text-2xl font-bold">
-            {p.visibility?.price === false
-              ? "Request a quote"
-              : money.format(displayPrice)}
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-3">
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={addToCart}
-              className="rounded-xl bg-orange-600 px-5 py-3 text-white font-semibold shadow hover:bg-orange-700"
-            >
-              Add to cart
-            </motion.button>
-
-            {p.pdfUrl && p.visibility?.pdf !== false && (
-              <a
-                href={p.pdfUrl}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm hover:border-neutral-700"
+          {/* Variantes */}
+          {activeVariants.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm">Size:</label>
+              <select
+                className="rounded border px-2 py-1 text-sm"
+                value={variantId}
+                onChange={(e) => setVariantId(e.target.value)}
               >
-                <FontAwesomeIcon icon={faFilePdf} /> Datasheet (PDF)
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
+                {activeVariants.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      {/* Extras */}
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
-        <div className="rounded-2xl border p-4">
-          <div className="text-sm font-semibold text-orange-700">
-            High performance
+          <div className="text-xl font-bold">
+            {priceVisible ? money.format(numericPrice) : "Request a quote"}
           </div>
-          <p className="text-sm text-neutral-700 mt-1">
-            Designed for exceptional response to high-speed burnishing
-            programs.
-          </p>
-        </div>
-        <div className="rounded-2xl border p-4">
-          <div className="text-sm font-semibold text-orange-700">
-            Non-yellowing
+
+          <button
+            onClick={addToCart}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            disabled={outOfStock}
+          >
+            {outOfStock ? "Out of stock" : "Add to cart"}
+          </button>
+
+          {product.pdfUrl && (
+            <div className="pt-2">
+              <a
+                href={product.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-emerald-700 underline"
+              >
+                Datasheet (PDF)
+              </a>
+            </div>
+          )}
+
+          <div className="prose prose-sm max-w-none">
+            <p>{product.description}</p>
           </div>
-          <p className="text-sm text-neutral-700 mt-1">
-            Scuff and scratch resistant, resists black heel marks.
-          </p>
-        </div>
-        <div className="rounded-2xl border p-4">
-          <div className="text-sm font-semibold text-orange-700">Low odor</div>
-          <p className="text-sm text-neutral-700 mt-1">
-            VOC-compliant and friendlier for the environment.
-          </p>
         </div>
       </div>
     </div>
