@@ -16,16 +16,16 @@ export default function ProductPage() {
 
   useEffect(() => {
     let active = true;
-    async function load() {
+    (async () => {
       try {
         setLoading(true);
-        // detalhe por id OU slug
-        const r = await api.get(`/products/${encodeURIComponent(slug || "")}`);
+        if (!slug) return;
+        const r = await api.get(`/products/${encodeURIComponent(slug)}`);
         if (!active) return;
-        setP(r.data as Product);
-        const act = (r.data?.variants || []).filter(
-          (v: ProductVariant) => v.active
-        );
+        const prod = r.data as Product;
+        setP(prod);
+
+        const act = (prod.variants || []).filter((v) => v.active);
         if (act.length) setVariantId(act[0].id);
         setCoverIdx(0);
       } catch {
@@ -33,8 +33,7 @@ export default function ProductPage() {
       } finally {
         if (active) setLoading(false);
       }
-    }
-    if (slug) load();
+    })();
     return () => {
       active = false;
     };
@@ -43,8 +42,8 @@ export default function ProductPage() {
   if (loading) return <div className="py-10 text-center">Loading…</div>;
   if (!p) return <div className="py-10 text-center">Product not found.</div>;
 
-  // 🔒 A partir daqui o TS sabe que "p" é Product
-  const product = p as Product;
+  // daqui pra baixo, p é Product garantido
+  const product = p;
 
   const images = product.images?.length
     ? product.images
@@ -62,27 +61,20 @@ export default function ProductPage() {
     [activeVariants, variantId]
   );
 
-  const priceVisible = product.visibility?.price !== false;
+  const priceVisible = product.visibility?.price !== false; // default visível, a não ser que esteja false
   const numericPrice = selectedVariant ? selectedVariant.price : product.price;
-  const outOfStock = selectedVariant
-    ? selectedVariant.stock <= 0
-    : product.stock <= 0;
+  const outOfStock = selectedVariant ? selectedVariant.stock <= 0 : product.stock <= 0;
 
   function addToCart() {
     const cartId = `${product.id}::${selectedVariant?.id || "base"}`;
     const displayName = selectedVariant?.name
       ? `${product.name} — ${selectedVariant.name}`
       : product.name;
-    const cartPrice = priceVisible ? numericPrice : null;
-    add(
-      {
-        id: cartId,
-        name: displayName,
-        price: cartPrice as any,
-        imageUrl: cover,
-      },
-      1
-    );
+
+    // regra: se preço oculto, colocamos 0 no carrinho (evita NaN) — o UI do carrinho mostra “Subtotal indisponível”
+    const cartPrice = priceVisible ? numericPrice : 0;
+
+    add({ id: cartId, name: displayName, price: cartPrice, imageUrl: cover }, 1);
   }
 
   return (
@@ -124,9 +116,7 @@ export default function ProductPage() {
           <h1 className="text-2xl font-bold">{product.name}</h1>
 
           {product.packageSize && (
-            <div className="text-sm text-neutral-600">
-              Package size: {product.packageSize}
-            </div>
+            <div className="text-sm text-neutral-600">Package size: {product.packageSize}</div>
           )}
 
           {/* Variantes */}
@@ -172,9 +162,11 @@ export default function ProductPage() {
             </div>
           )}
 
-          <div className="prose prose-sm max-w-none">
-            <p>{product.description}</p>
-          </div>
+          {product.description && (
+            <div className="prose prose-sm max-w-none">
+              <p>{product.description}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

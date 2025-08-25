@@ -6,6 +6,13 @@ export type CategoryRef = {
   parent?: { id: string; name: string; slug: string } | null;
 };
 
+// ✅ Tipo leve de UI para parse/serialize de variantes em packageSize (JSON)
+export type Variant = {
+  label: string;          // ex.: "1 gal", "32 oz"
+  price: number | null;   // pode ser null quando só há o rótulo
+};
+
+// ✅ Flags de visibilidade usadas no Admin / público
 export type ProductVisibility = {
   price: boolean;
   packageSize: boolean;
@@ -14,6 +21,7 @@ export type ProductVisibility = {
   description: boolean;
 };
 
+// ✅ Variante persistida (no banco)
 export type ProductVariant = {
   id: string;
   name: string;         // ex.: "1 gal", "32 oz"
@@ -33,10 +41,10 @@ export type Product = {
   active: boolean;
   stock: number;
   sortOrder: number;
-  packageSize?: string | null;
+  packageSize?: string | null;    // pode conter JSON com {label, price}
   pdfUrl?: string | null;
-  imageUrl?: string | null;
-  images: string[];
+  imageUrl?: string | null;       // capa legada/fallback
+  images: string[];               // urls
   category?: CategoryRef | null;
   sale?: {
     title?: string;
@@ -46,7 +54,10 @@ export type Product = {
     endsAt: string;
     salePrice: number;
   } | null;
+
   visibility?: ProductVisibility;
+
+  // ✅ lista de variantes persistidas (se você usar tabela ProductVariant)
   variants?: ProductVariant[];
 };
 
@@ -89,6 +100,8 @@ export type OrderItem = {
   quantity: number;
   unitPrice: number;
   product?: { id: string; name: string; slug: string; stock?: number };
+
+  // ✅ campos para variante no item
   variantId?: string | null;
   variantName?: string | null;
 };

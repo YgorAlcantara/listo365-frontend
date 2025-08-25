@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type CartItem = {
-  id: string; // pode ser "productId::variantId"
+  id: string;               // pode ser "productId::variantLabel" se quiser
   name: string;
-  price: number | null; // pode ser null quando o preço é oculto
+  price: number;            // 0 quando preço é oculto/quote
   imageUrl: string;
   quantity: number;
 };
@@ -11,8 +11,8 @@ export type CartItem = {
 type CartContextType = {
   items: CartItem[];
   count: number;
-  total: number; // soma apenas dos itens com price !== null
-  hasUnpriced: boolean; // true se existir item com price null
+  total: number;            // soma apenas itens com preço > 0
+  hasUnpriced: boolean;     // true se houver algum item com preço 0 (quote)
   add: (item: Omit<CartItem, "quantity">, qty?: number) => void;
   inc: (id: string, step?: number) => void;
   dec: (id: string, step?: number) => void;
@@ -38,39 +38,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const api = useMemo<CartContextType>(() => {
-    const pricedSum = items.reduce(
-      (acc, i) => acc + (i.price ?? 0) * i.quantity,
-      0
-    );
-    const hasUnpriced = items.some(
-      (i) =>
-        i.price === null ||
-        typeof i.price !== "number" ||
-        !Number.isFinite(i.price)
-    );
+    const pricedTotal = items.reduce((acc, i) => {
+      const canUse = typeof i.price === "number" && Number.isFinite(i.price) && i.price > 0;
+      return acc + (canUse ? i.quantity * i.price : 0);
+    }, 0);
+    const hasUnpriced = items.some((i) => !(typeof i.price === "number" && Number.isFinite(i.price) && i.price > 0));
 
     return {
       items,
       count: items.reduce((acc, i) => acc + i.quantity, 0),
-      total: Number(pricedSum.toFixed(2)),
+      total: Number(pricedTotal.toFixed(2)),
       hasUnpriced,
 
       add: (item, qty = 1) =>
         setItems((prev) => {
           const found = prev.find((p) => p.id === item.id);
-          if (found)
-            return prev.map((p) =>
-              p.id === item.id ? { ...p, quantity: p.quantity + qty } : p
-            );
+          if (found) return prev.map((p) => (p.id === item.id ? { ...p, quantity: p.quantity + qty } : p));
           return [...prev, { ...item, quantity: qty }];
         }),
 
-      inc: (id, step = 1) =>
-        setItems((prev) =>
-          prev.map((p) =>
-            p.id === id ? { ...p, quantity: p.quantity + step } : p
-          )
-        ),
+      inc: (id, step = 1) => setItems((prev) => prev.map((p) => (p.id === id ? { ...p, quantity: p.quantity + step } : p))),
       dec: (id, step = 1) =>
         setItems((prev) =>
           prev.flatMap((p) => {
