@@ -1,86 +1,117 @@
-// src/pages/ProductPage.tsx
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { api } from "@/services/api";
-import type { Product, ProductVariant } from "@/types";
+import type { Product } from "@/types";
+import { money } from "@/utils/money";
 import { useCart } from "@/components/cart/CartProvider";
-import { money } from "@/components/utils";
 
 export default function ProductPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const { add } = useCart();
+  // Compatível com :idOrSlug e :idOrslug (rota atual)
+  const params = useParams();
+  const idOrSlug = (params as any).idOrSlug ?? (params as any).idOrslug;
+
   const [p, setP] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [variantId, setVariantId] = useState<string | undefined>();
-  const [coverIdx, setCoverIdx] = useState(0);
+  const [notFound, setNotFound] = useState(false);
+  const { add } = useCart();
+
+  // Se admin (axios com Authorization), força ?all=1
+  const wantsAll = useMemo(() => {
+    const h: any = (api as any)?.defaults?.headers;
+    const auth =
+      h?.Authorization ||
+      h?.authorization ||
+      h?.common?.Authorization ||
+      h?.common?.authorization;
+    return Boolean(auth);
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        setLoading(true);
-        if (!slug) return;
-        const r = await api.get(`/products/${encodeURIComponent(slug)}`);
-        if (!active) return;
-        const prod = r.data as Product;
-        setP(prod);
+    let alive = true;
 
-        const act = (prod.variants || []).filter((v) => v.active);
-        if (act.length) setVariantId(act[0].id);
-        setCoverIdx(0);
-      } catch {
-        if (active) setP(null);
-      } finally {
-        if (active) setLoading(false);
+    async function load() {
+      if (!idOrSlug) {
+        setNotFound(true);
+        setLoading(false);
+        return;
       }
-    })();
+      setLoading(true);
+      setNotFound(false);
+
+      try {
+        const r = await api.get<Product>(
+          `/products/${encodeURIComponent(idOrSlug)}`,
+          { params: wantsAll ? { all: 1 } : undefined }
+        );
+        if (!alive) return;
+        setP(r.data ?? null);
+        setNotFound(!r.data);
+      } catch {
+        if (!alive) return;
+        setNotFound(true);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    load();
     return () => {
-      active = false;
+      alive = false;
     };
-  }, [slug]);
+  }, [idOrSlug, wantsAll]);
 
-  if (loading) return <div className="py-10 text-center">Loading…</div>;
-  if (!p) return <div className="py-10 text-center">Product not found.</div>;
-
-  // daqui pra baixo, p é Product garantido
-  const product = p;
-
-  const images = product.images?.length
-    ? product.images
-    : product.imageUrl
-    ? [product.imageUrl]
-    : [];
-  const cover = images[coverIdx] ?? "";
-
-  const activeVariants = (product.variants || [])
-    .filter((v) => v.active)
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
-  const selectedVariant = useMemo(
-    () => activeVariants.find((v) => v.id === variantId),
-    [activeVariants, variantId]
-  );
-
-  const priceVisible = product.visibility?.price !== false; // default visível, a não ser que esteja false
-  const numericPrice = selectedVariant ? selectedVariant.price : product.price;
-  const outOfStock = selectedVariant ? selectedVariant.stock <= 0 : product.stock <= 0;
-
-  function addToCart() {
-    const cartId = `${product.id}::${selectedVariant?.id || "base"}`;
-    const displayName = selectedVariant?.name
-      ? `${product.name} — ${selectedVariant.name}`
-      : product.name;
-
-    // regra: se preço oculto, colocamos 0 no carrinho (evita NaN) — o UI do carrinho mostra “Subtotal indisponível”
-    const cartPrice = priceVisible ? numericPrice : 0;
-
-    add({ id: cartId, name: displayName, price: cartPrice, imageUrl: cover }, 1);
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl py-10">
+        <div className="rounded-2xl border bg-white p-6 text-sm">Loading…</div>
+      </div>
+    );
   }
 
+  if (notFound || !p) {
+    return (
+      <div className="mx-auto max-w-5xl py-10">
+        <div className="rounded-2xl border bg-white p-6">
+          <h1 className="text-xl font-semibold">Product not found</h1>
+          <p className="mt-2 text-sm text-neutral-600">
+            The product you’re looking for doesn’t exist or is unavailable.
+          </p>
+          <div className="mt-4">
+            <Link
+              to="/"
+              className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+            >
+              Back to home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ daqui pra frente, use `product` (não `p`) para o TypeScript entender que não é null
+  const product = p as Product;
+
+  const cover =
+    (product.images && product.images.length > 0
+      ? product.images[0]
+      : undefined) ??
+    product.imageUrl ??
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+  const hasPrice =
+    typeof product.price === "number" && Number.isFinite(product.price);
+
+  const addToCart = () => {
+    const price = hasPrice ? (product.price as number) : Number.NaN; // NaN -> unpriced workflow
+    const id = `${product.id}::base`;
+    add({ id, name: product.name, price, imageUrl: cover }, 1);
+  };
+
   return (
-    <div className="mx-auto max-w-6xl py-6">
+    <div className="mx-auto max-w-6xl py-8">
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Galeria */}
+        {/* Gallery */}
         <div className="space-y-3">
           <div
             className="aspect-[4/3] w-full rounded-2xl border bg-neutral-100"
@@ -90,85 +121,106 @@ export default function ProductPage() {
               backgroundPosition: "center",
             }}
           />
-          {images.length > 1 && (
+          {product.images && product.images.length > 1 && (
             <div className="grid grid-cols-4 gap-2">
-              {images.slice(0, 8).map((src, i) => (
-                <button
+              {product.images.slice(1, 5).map((img, i) => (
+                <div
                   key={i}
-                  onClick={() => setCoverIdx(i)}
-                  className={`aspect-[4/3] w-full rounded-lg border bg-neutral-100 ${
-                    coverIdx === i ? "ring-2 ring-orange-500" : ""
-                  }`}
+                  className="aspect-square rounded-lg border bg-neutral-100"
                   style={{
-                    backgroundImage: `url(${src})`,
+                    backgroundImage: `url(${img})`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }}
-                  title="Preview"
+                  title={`Image ${i + 2}`}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Infos */}
+        {/* Info */}
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">{product.name}</h1>
 
-          {product.packageSize && (
-            <div className="text-sm text-neutral-600">Package size: {product.packageSize}</div>
-          )}
-
-          {/* Variantes */}
-          {activeVariants.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm">Size:</label>
-              <select
-                className="rounded border px-2 py-1 text-sm"
-                value={variantId}
-                onChange={(e) => setVariantId(e.target.value)}
-              >
-                {activeVariants.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
+          {product.category && (
+            <div className="text-xs text-neutral-500">
+              {product.category.parent
+                ? `${product.category.parent.name} › `
+                : ""}
+              {product.category.name}
             </div>
           )}
 
-          <div className="text-xl font-bold">
-            {priceVisible ? money.format(numericPrice) : "Request a quote"}
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold">
+                {hasPrice
+                  ? money.format(product.price as number)
+                  : "Request a quote"}
+              </div>
+              {product.packageSize && (
+                <div className="text-xs text-neutral-500">
+                  Size: {product.packageSize}
+                </div>
+              )}
+            </div>
+
+            {product.pdfUrl && (
+              <div className="mt-2">
+                <a
+                  href={product.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-orange-600 underline decoration-dotted underline-offset-2 hover:text-orange-700"
+                >
+                  View product datasheet (PDF)
+                </a>
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={addToCart}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                {hasPrice ? "Add to cart" : "Request a quote"}
+              </button>
+              <Link
+                to="/checkout"
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:border-emerald-500 hover:text-emerald-700"
+              >
+                Go to checkout
+              </Link>
+            </div>
           </div>
-
-          <button
-            onClick={addToCart}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            disabled={outOfStock}
-          >
-            {outOfStock ? "Out of stock" : "Add to cart"}
-          </button>
-
-          {product.pdfUrl && (
-            <div className="pt-2">
-              <a
-                href={product.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-emerald-700 underline"
-              >
-                Datasheet (PDF)
-              </a>
-            </div>
-          )}
 
           {product.description && (
             <div className="prose prose-sm max-w-none">
-              <p>{product.description}</p>
+              <p className="whitespace-pre-line">{product.description}</p>
             </div>
           )}
         </div>
       </div>
+
+      {product.images && product.images.length > 4 && (
+        <div className="mt-8">
+          <h2 className="mb-2 text-lg font-semibold">More photos</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {product.images.slice(4).map((img, i) => (
+              <div
+                key={i}
+                className="aspect-[4/3] rounded-xl border bg-neutral-100"
+                style={{
+                  backgroundImage: `url(${img})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

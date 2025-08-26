@@ -9,40 +9,51 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
 
-  // carrega /auth/me só pra exibir e ter fallback se o token estiver inválido
+  // Load /auth/me to verify token and show user info
   useEffect(() => {
-    api
-      .get("/auth/me")
-      .then((r) => setMe(r.data))
-      .catch(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await api.get<Me>("/auth/me");
+        if (alive) setMe(r.data);
+      } catch {
         clearToken();
         navigate("/admin/login", { replace: true });
-      });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [navigate]);
 
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     `block rounded px-3 py-2 text-sm ${
-      isActive ? "bg-neutral-200 font-semibold" : "hover:bg-neutral-100"
+      isActive
+        ? "bg-emerald-50 text-emerald-800 font-semibold"
+        : "hover:bg-neutral-100"
     }`;
 
   function logout() {
     clearToken();
-    navigate("/"); // volta p/ site público
+    navigate("/", { replace: true });
   }
 
   return (
     <div className="min-h-screen bg-neutral-100">
-      <header className="sticky top-0 z-10 border-b bg-white">
+      {/* Topbar */}
+      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/")}
-              className="rounded border px-2 py-1 text-sm"
-              title="Voltar ao site"
+              className="rounded border px-2 py-1 text-sm hover:bg-neutral-50"
+              title="Back to site"
             >
               ← Site
             </button>
-            <div className="text-lg font-semibold">Admin</div>
+            <div className="text-lg font-semibold tracking-tight">
+              <span className="text-emerald-600">Listo</span>365 Admin
+            </div>
           </div>
 
           <nav className="hidden gap-2 md:flex">
@@ -68,8 +79,8 @@ export default function AdminLayout() {
             )}
             <button
               onClick={logout}
-              className="rounded bg-black px-2 py-1 text-xs text-white"
-              title="Sair do Admin"
+              className="rounded bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-800"
+              title="Sign out"
             >
               Logout
             </button>
@@ -77,6 +88,7 @@ export default function AdminLayout() {
         </div>
       </header>
 
+      {/* Shell */}
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:grid-cols-[220px_1fr]">
         {/* Sidebar */}
         <aside className="hidden rounded-xl border bg-white p-3 md:block">
@@ -96,7 +108,7 @@ export default function AdminLayout() {
           </nav>
         </aside>
 
-        {/* Conteúdo */}
+        {/* Main content */}
         <main>
           <Outlet />
         </main>

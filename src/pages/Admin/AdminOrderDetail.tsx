@@ -1,10 +1,41 @@
-// src/pages/Admin/AdminOrderDetail.tsx
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/services/api";
 import { toast } from "react-hot-toast";
+import { money } from "@/utils/money";
 
-type Order = any; // simplificado para manter curto (o objeto é o mesmo da listagem)
+type Order = {
+  id: string;
+  status: "RECEIVED" | "IN_PROGRESS" | "COMPLETED" | "REFUSED" | "CANCELLED";
+  createdAt: string;
+  note?: string | null;
+  adminNote?: string | null;
+  customer?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  address?: {
+    line1: string;
+    line2?: string | null;
+    city: string;
+    state?: string | null;
+    postalCode?: string | null;
+    country: string;
+  } | null;
+  items: Array<{
+    id: string;
+    quantity: number;
+    unitPrice: number | string;
+    product?: { id: string; name: string; slug: string } | null;
+    productId: string;
+  }>;
+};
+
+const numberish = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export default function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +49,7 @@ export default function AdminOrderDetail() {
     if (!id) return;
     setLoading(true);
     try {
-      const r = await api.get(`/orders/${id}`);
+      const r = await api.get<Order>(`/orders/${id}`);
       setO(r.data);
       setNote(r.data?.note || "");
       setAdminNote(r.data?.adminNote || "");
@@ -35,7 +66,7 @@ export default function AdminOrderDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function setStatus(newStatus: string) {
+  async function setStatus(newStatus: Order["status"]) {
     if (!id) return;
     try {
       await api.patch(`/orders/${id}/status`, { status: newStatus });
@@ -68,15 +99,14 @@ export default function AdminOrderDetail() {
             Back
           </Link>
         </div>
-        <div className="rounded-xl border bg-white p-4">
+        <div className="rounded-2xl border bg-white p-4">
           {loading ? "Loading…" : "Order not found"}
         </div>
       </div>
     );
   }
 
-  const qty =
-    o.items?.reduce((acc: number, it: any) => acc + it.quantity, 0) || 0;
+  const qty = o.items?.reduce((acc, it) => acc + it.quantity, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -87,7 +117,7 @@ export default function AdminOrderDetail() {
             Back
           </Link>
           <button
-            className="rounded border px-3 py-2 text-sm"
+            className="rounded border px-3 py-2 text-sm hover:bg-neutral-50"
             onClick={() => navigate(0)}
           >
             Refresh
@@ -96,19 +126,20 @@ export default function AdminOrderDetail() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border bg-white p-4 space-y-2">
+        <div className="space-y-2 rounded-2xl border bg-white p-4">
           <h2 className="text-lg font-semibold">Customer</h2>
           <div className="text-sm">
             <div>
-              <b>Name:</b> {o.customer?.name}
+              <b>Name:</b> {o.customer?.name || "—"}
             </div>
             <div>
-              <b>Email:</b> {o.customer?.email}
+              <b>Email:</b> {o.customer?.email || "—"}
             </div>
             <div>
               <b>Phone:</b> {o.customer?.phone || "—"}
             </div>
           </div>
+
           <h3 className="mt-3 text-sm font-semibold">Address</h3>
           {o.address ? (
             <div className="text-sm">
@@ -125,11 +156,14 @@ export default function AdminOrderDetail() {
             <div className="text-sm text-neutral-500">No address</div>
           )}
           <div className="mt-3 text-sm">
-            <b>Recurrence:</b> {o.recurrence || "—"}
+            <b>Items:</b> {qty}
+          </div>
+          <div className="text-sm">
+            <b>Created:</b> {new Date(o.createdAt).toLocaleString()}
           </div>
         </div>
 
-        <div className="rounded-xl border bg-white p-4 space-y-2">
+        <div className="space-y-2 rounded-2xl border bg-white p-4">
           <h2 className="text-lg font-semibold">Status</h2>
           <div className="flex flex-wrap gap-2">
             {[
@@ -141,28 +175,22 @@ export default function AdminOrderDetail() {
             ].map((s) => (
               <button
                 key={s}
-                onClick={() => setStatus(s)}
+                onClick={() => setStatus(s as Order["status"])}
                 className={`rounded border px-3 py-2 text-sm ${
                   o.status === s
-                    ? "bg-neutral-200 font-semibold"
+                    ? "bg-emerald-50 text-emerald-800 font-semibold border-emerald-200"
                     : "hover:bg-neutral-50"
                 }`}
               >
-                {s}
+                {s.replace("_", " ")}
               </button>
             ))}
-          </div>
-          <div className="text-sm mt-2">
-            <b>Created:</b> {new Date(o.createdAt).toLocaleString()}
-          </div>
-          <div className="text-sm">
-            <b>Items:</b> {qty}
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-4">
-        <h2 className="text-lg font-semibold mb-2">Items</h2>
+      <div className="rounded-2xl border bg-white p-4">
+        <h2 className="mb-2 text-lg font-semibold">Items</h2>
         <div className="overflow-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-neutral-50">
@@ -170,23 +198,28 @@ export default function AdminOrderDetail() {
                 <th className="px-3 py-2 text-left">Product</th>
                 <th className="px-3 py-2 text-left">Quantity</th>
                 <th className="px-3 py-2 text-left">Unit Price</th>
+                <th className="px-3 py-2 text-left">Total</th>
               </tr>
             </thead>
             <tbody>
-              {o.items.map((it: any) => (
-                <tr key={it.id} className="border-t">
-                  <td className="px-3 py-2">
-                    {it.product?.name || it.productId}
-                  </td>
-                  <td className="px-3 py-2">{it.quantity}</td>
-                  <td className="px-3 py-2">
-                    ${Number(it.unitPrice).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+              {o.items.map((it) => {
+                const unit = numberish(it.unitPrice);
+                return (
+                  <tr key={it.id} className="border-t">
+                    <td className="px-3 py-2">
+                      {it.product?.name || it.productId}
+                    </td>
+                    <td className="px-3 py-2">{it.quantity}</td>
+                    <td className="px-3 py-2">{money.format(unit)}</td>
+                    <td className="px-3 py-2">
+                      {money.format(unit * it.quantity)}
+                    </td>
+                  </tr>
+                );
+              })}
               {o.items.length === 0 && (
                 <tr>
-                  <td className="px-3 py-3 text-neutral-500" colSpan={3}>
+                  <td className="px-3 py-3 text-neutral-500" colSpan={4}>
                     No items.
                   </td>
                 </tr>
@@ -196,7 +229,7 @@ export default function AdminOrderDetail() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-4 space-y-3">
+      <div className="space-y-3 rounded-2xl border bg-white p-4">
         <h2 className="text-lg font-semibold">Notes</h2>
         <div>
           <label className="mb-1 block text-sm font-medium">Public note</label>

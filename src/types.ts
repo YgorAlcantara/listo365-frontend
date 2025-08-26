@@ -1,4 +1,4 @@
-// ---------- PRODUCTS ----------
+// ---------- CATEGORIES ----------
 export type CategoryRef = {
   id: string;
   name: string;
@@ -6,13 +6,13 @@ export type CategoryRef = {
   parent?: { id: string; name: string; slug: string } | null;
 };
 
-// ✅ Tipo leve de UI para parse/serialize de variantes em packageSize (JSON)
+// Lightweight UI variant (when encoded in packageSize or for quick selects)
 export type Variant = {
-  label: string;          // ex.: "1 gal", "32 oz"
-  price: number | null;   // pode ser null quando só há o rótulo
+  label: string; // e.g., "1 gal", "32 oz"
+  price: number | null; // can be null if only label exists
 };
 
-// ✅ Flags de visibilidade usadas no Admin / público
+// Visibility flags used by Admin and public UI
 export type ProductVisibility = {
   price: boolean;
   packageSize: boolean;
@@ -21,31 +21,36 @@ export type ProductVisibility = {
   description: boolean;
 };
 
-// ✅ Variante persistida (no banco)
+// Persisted product variant (DB table ProductVariant)
 export type ProductVariant = {
   id: string;
-  name: string;         // ex.: "1 gal", "32 oz"
-  price: number;        // preço da variante
+  name: string; // e.g., "1 gal"
+  price?: number; // variant price (may be hidden by visibility rules)
   stock: number;
   active: boolean;
   sortOrder: number;
   sku?: string;
 };
 
+// ---------- PRODUCTS ----------
 export type Product = {
   id: string;
   name: string;
   slug: string;
-  description: string;
-  price: number; // baseline (para lista/SEO); pode ser 0
+  description?: string; // may be hidden by visibility
+  price?: number; // baseline; may be hidden by visibility
   active: boolean;
   stock: number;
   sortOrder: number;
-  packageSize?: string | null;    // pode conter JSON com {label, price}
+
+  // legacy / optional fields
+  packageSize?: string | null; // may contain JSON with {label, price}
   pdfUrl?: string | null;
-  imageUrl?: string | null;       // capa legada/fallback
-  images: string[];               // urls
+  imageUrl?: string | null; // legacy cover fallback
+  images: string[]; // gallery
+
   category?: CategoryRef | null;
+
   sale?: {
     title?: string;
     percentOff?: number;
@@ -55,10 +60,8 @@ export type Product = {
     salePrice: number;
   } | null;
 
+  variants?: ProductVariant[]; // optional when feature is enabled
   visibility?: ProductVisibility;
-
-  // ✅ lista de variantes persistidas (se você usar tabela ProductVariant)
-  variants?: ProductVariant[];
 };
 
 // ---------- CUSTOMERS / ADDRESSES ----------
@@ -71,7 +74,7 @@ export type Address = {
   state?: string | null;
   postalCode?: string | null;
   country: string;
-  isPrimary: boolean;
+  isPrimary?: boolean; // not required by backend, but safe for UI
   createdAt: string;
 };
 
@@ -98,10 +101,10 @@ export type OrderItem = {
   orderId: string;
   productId: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number; // snapshot
   product?: { id: string; name: string; slug: string; stock?: number };
 
-  // ✅ campos para variante no item
+  // variant info snapshot (optional)
   variantId?: string | null;
   variantName?: string | null;
 };

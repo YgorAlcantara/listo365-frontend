@@ -1,9 +1,11 @@
 // src/pages/Admin/Orders.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/services/api";
+import { money } from "@/utils/money";
 import type { OrderInquiry, OrderItem, OrderStatus, Page } from "@/types";
 import { toast } from "react-hot-toast";
 
+// ----- constants / helpers -----
 const STATUSES: Array<"ALL" | OrderStatus> = [
   "ALL",
   "RECEIVED",
@@ -32,24 +34,17 @@ function statusBadge(s: OrderStatus) {
 
 function fmtDate(s?: string) {
   if (!s) return "—";
-  const d = new Date(s);
-  return d.toLocaleString();
+  return new Date(s).toLocaleString();
 }
 
-function fmtMoney(n?: number) {
-  if (typeof n !== "number" || Number.isNaN(n)) return "—";
-  return `$${n.toFixed(2)}`;
-}
-
-// Prisma pode retornar Decimal como string -> convertemos com segurança
-function numberish(v: unknown): number {
+// Prisma Decimal can arrive as string; normalize safely
+function asNumber(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
-
 function sumItems(items: OrderItem[]) {
   return items.reduce(
-    (acc, it) => acc + it.quantity * numberish(it.unitPrice),
+    (acc, it) => acc + it.quantity * asNumber(it.unitPrice),
     0
   );
 }
@@ -113,7 +108,6 @@ export default function AdminOrders() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, page]);
 
-  // abre/atualiza detalhe quando openId mudar
   useEffect(() => {
     if (openId) fetchDetail(openId);
     else setDetail(null);
@@ -127,6 +121,7 @@ export default function AdminOrders() {
 
   async function changeStatus(next: OrderStatus) {
     if (!detail) return;
+
     if (next === "COMPLETED") {
       const ok = confirm(
         "Mark this order as COMPLETED?\nThis will decrement product stock based on item quantities."
@@ -260,7 +255,7 @@ export default function AdminOrders() {
                   </div>
                 </td>
                 <td className="px-3 py-2">{o.items.length}</td>
-                <td className="px-3 py-2">{fmtMoney(sumItems(o.items))}</td>
+                <td className="px-3 py-2">{money.format(sumItems(o.items))}</td>
                 <td className="px-3 py-2">
                   <span className={statusBadge(o.status)}>
                     {o.status.replace("_", " ")}
@@ -312,7 +307,7 @@ export default function AdminOrders() {
       {openId && detail && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={() => setOpenId(null)} />
-          <div className="w-full max-w-xl bg-white shadow-xl overflow-auto p-4">
+          <div className="w-full max-w-xl overflow-auto bg-white p-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Order {detail.id}</h3>
               <button
@@ -336,7 +331,7 @@ export default function AdminOrders() {
 
             {/* Customer */}
             <div className="mt-4 rounded border p-3">
-              <h4 className="font-medium mb-2">Customer</h4>
+              <h4 className="mb-2 font-medium">Customer</h4>
               <div className="text-sm">
                 <div>
                   <b>Name:</b> {detail.customer?.name || "—"}
@@ -356,7 +351,7 @@ export default function AdminOrders() {
 
             {/* Address */}
             <div className="mt-4 rounded border p-3">
-              <h4 className="font-medium mb-2">Address</h4>
+              <h4 className="mb-2 font-medium">Address</h4>
               {detail.address ? (
                 <div className="text-sm">
                   <div>{detail.address.line1}</div>
@@ -377,7 +372,7 @@ export default function AdminOrders() {
 
             {/* Items */}
             <div className="mt-4 rounded border p-3">
-              <h4 className="font-medium mb-2">Items</h4>
+              <h4 className="mb-2 font-medium">Items</h4>
               <div className="space-y-2">
                 {detail.items.map((it) => (
                   <div
@@ -390,25 +385,25 @@ export default function AdminOrders() {
                       </div>
                       <div className="text-xs text-neutral-500">
                         Qty: {it.quantity} · Unit:{" "}
-                        {fmtMoney(numberish(it.unitPrice))}
+                        {money.format(asNumber(it.unitPrice))}
                       </div>
                     </div>
                     <div className="font-medium">
-                      {fmtMoney(it.quantity * numberish(it.unitPrice))}
+                      {money.format(it.quantity * asNumber(it.unitPrice))}
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 border-t pt-2 text-right font-semibold">
-                Total: {fmtMoney(sumItems(detail.items))}
+                Total: {money.format(sumItems(detail.items))}
               </div>
             </div>
 
             {/* Notes */}
-            <div className="mt-4 rounded border p-3 space-y-3">
+            <div className="mt-4 space-y-3 rounded border p-3">
               <h4 className="font-medium">Notes</h4>
               <div>
-                <label className="block text-sm mb-1">Customer note</label>
+                <label className="mb-1 block text-sm">Customer note</label>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -417,7 +412,7 @@ export default function AdminOrders() {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">Admin note</label>
+                <label className="mb-1 block text-sm">Admin note</label>
                 <textarea
                   value={adminNote}
                   onChange={(e) => setAdminNote(e.target.value)}
@@ -438,7 +433,7 @@ export default function AdminOrders() {
 
             {/* Status actions */}
             <div className="mt-4 rounded border p-3">
-              <h4 className="font-medium mb-2">Change status</h4>
+              <h4 className="mb-2 font-medium">Change status</h4>
               <div className="flex flex-wrap gap-2">
                 {(
                   [
