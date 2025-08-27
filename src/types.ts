@@ -24,12 +24,14 @@ export type ProductVisibility = {
 // Persisted product variant (DB table ProductVariant)
 export type ProductVariant = {
   id: string;
-  name: string; // e.g., "1 gal"
-  price?: number; // variant price (may be hidden by visibility rules)
+  name: string; // "1 Gallon"
+  price?: number; // pode ocultar no público
   stock: number;
   active: boolean;
   sortOrder: number;
   sku?: string;
+  imageUrl?: string | null; // 👈 capa opcional da variante
+  images?: string[]; // 👈 galeria opcional da variante
 };
 
 // ---------- PRODUCTS ----------
