@@ -175,20 +175,19 @@ export default function Dashboard() {
     // 🔧 Coage preço de variante em branco/NaN -> 0 (para não “sumir”)
     const variantsPayload = variants
       .map((v) => {
-        const parsed = parseFloat(String(v.price).replace(",", "."));
-        const price = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-        const stock = parseInt(String(v.stock || "0"), 10);
+        const n = Number(String(v.price).replace(",", "."));
+        const safePrice = Number.isFinite(n) ? n : 0; // <= preço vazio vira 0
         return {
           ...(v.id ? { id: v.id } : {}),
           name: v.name.trim(),
-          price,
-          stock: Number.isFinite(stock) && stock >= 0 ? stock : 0,
+          price: safePrice,
+          stock: parseInt(String(v.stock || "0"), 10) || 0,
           sortOrder: v.sortOrder || 0,
           active: !!v.active,
           sku: v.sku?.trim() || undefined,
         };
       })
-      .filter((v) => v.name); // só exige nome; preço 0 é aceitável
+      .filter((v) => !!v.name); // mantém só o filtro por nome
 
     setLoading(true);
     try {
