@@ -1,13 +1,18 @@
-// src/pages/ProductPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/services/api";
 import type { Product } from "@/types";
 import { money } from "@/utils/money";
 import { useCart } from "@/components/cart/CartProvider";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  FileText,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 
-// Extensão local opcional para variantes com imagem (não quebra seu types atual)
+// Variante com imagem (compat extra; se o backend ainda não manda, não quebra)
 type VariantExtra = { imageUrl?: string | null; images?: string[] | null };
 
 export default function ProductPage() {
@@ -16,10 +21,11 @@ export default function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [selectedVarId, setSelectedVarId] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState(false);
 
   const { add } = useCart();
 
-  // Se o axios `api` já tem Authorization setado (login admin), forçamos ?all=1
+  // Se o axios tem Authorization (admin), pedimos ?all=1
   const wantsAll = useMemo(() => {
     const h: any = (api as any)?.defaults?.headers;
     const auth =
@@ -41,6 +47,7 @@ export default function ProductPage() {
       }
       setLoading(true);
       setNotFound(false);
+      setJustAdded(false);
 
       try {
         const r = await api.get<Product>(
@@ -53,7 +60,6 @@ export default function ProductPage() {
         setP(prod);
         setNotFound(!prod);
 
-        // Seleciona a primeira variante ativa (se existir)
         if (prod?.variants && prod.variants.length) {
           const firstActive = prod.variants.find((v) => v.active !== false);
           setSelectedVarId(firstActive?.id ?? null);
@@ -81,8 +87,8 @@ export default function ProductPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl py-10">
-        <div className="rounded-2xl border bg-white p-6 text-sm inline-flex items-center gap-2">
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <div className="inline-flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading…
         </div>
@@ -92,7 +98,7 @@ export default function ProductPage() {
 
   if (notFound || !p) {
     return (
-      <div className="mx-auto max-w-5xl py-10">
+      <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="rounded-2xl border bg-white p-6">
           <h1 className="text-xl font-semibold">Product not found</h1>
           <p className="mt-2 text-sm text-neutral-600">
@@ -112,126 +118,185 @@ export default function ProductPage() {
     );
   }
 
-  // --- Helpers baseados no produto carregado (p está garantido != null aqui) ---
-  const variants = Array.isArray(p.variants) ? p.variants : [];
+  // ✅ A partir daqui, p existe:
+  const product = p as Product;
+
+  const variants = Array.isArray(product.variants) ? product.variants : [];
   const selectedVariant =
     (variants.find((v) => v.id === selectedVarId) as (typeof variants)[number] &
       VariantExtra) || null;
 
-  const hasPrice =
-    typeof p.price === "number" && Number.isFinite(p.price as number);
-
-  // Capa: privilegia a imagem da variante, se houver; depois a do produto; depois 1px gif
   const cover =
     selectedVariant?.imageUrl ||
-    (p.images && p.images.length > 0 ? p.images[0] : undefined) ||
-    p.imageUrl ||
+    (product.images && product.images.length > 0
+      ? product.images[0]
+      : undefined) ||
+    product.imageUrl ||
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-  // Galeria: se a variante tiver imagens, usa; senão, usa do produto
   const gallery =
     (selectedVariant?.images && selectedVariant.images.length > 0
       ? selectedVariant.images
-      : p.images) || [];
+      : product.images) || [];
 
-  // Preço exibido: variante > produto; respeita visibilidade no backend (se oculto, virá undefined)
-  const displayPrice =
+  const basePrice =
     (selectedVariant?.price as number | undefined) ??
-    (p.price as number | undefined);
+    (product.price as number | undefined);
 
-  // Adiciona ao carrinho com id composto (productId::variantId)
-  function addToCart() {
-    if (!p) return;
+  const effectivePrice =
+    product.sale && !selectedVariant?.price
+      ? product.sale.salePrice
+      : basePrice;
+
+  const wasPrice =
+    product.sale && typeof basePrice === "number" && !selectedVariant?.price
+      ? (product.price as number | undefined)
+      : undefined;
+
+  const hasNumericPrice = typeof effectivePrice === "number";
+
+  function addToBag() {
+    setJustAdded(false);
     const v = selectedVariant;
     const variantId = v?.id ?? "base";
     const id =
-      variantId && variantId !== "base" ? `${p.id}::${variantId}` : p.id;
+      variantId && variantId !== "base"
+        ? `${product.id}::${variantId}`
+        : product.id;
 
-    // Nome amigável com variante
-    const name = v ? `${p.name} (${v.name})` : p.name;
+    const name = v ? `${product.name} (${v.name})` : product.name;
 
-    // Preço a usar (pode ser undefined se visibilidade bloqueia — então o carrinho marca como “Quote required”)
     const price =
       typeof v?.price === "number"
         ? (v.price as number)
-        : typeof p.price === "number"
-        ? (p.price as number)
+        : typeof product.price === "number"
+        ? (product.price as number)
         : undefined;
 
-    // Imagem preferida
-    const imageUrl = v?.imageUrl || cover;
+    const imageUrl =
+      v?.imageUrl ||
+      (product.images && product.images.length > 0
+        ? product.images[0]
+        : undefined) ||
+      product.imageUrl ||
+      null;
 
-    // ⚠️ NÃO envie "productId" ou "quantity" aqui — o CartProvider cuida.
     add({
       id,
       name,
       price,
       imageUrl,
+      variantId: v?.id ?? null,
+      variantName: v?.name ?? null,
     });
+
+    // pequeno feedback
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 1800);
   }
 
   return (
-    <div className="mx-auto max-w-6xl py-8">
-      <div className="grid gap-6 md:grid-cols-2">
+    <div className="mx-auto max-w-7xl px-4 py-10">
+      {/* Breadcrumb */}
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+        <Link to="/" className="hover:text-neutral-700">
+          Products
+        </Link>
+        <span className="select-none text-neutral-400">/</span>
+        {product.category?.parent && (
+          <>
+            <span>{product.category.parent.name}</span>
+            <span className="select-none text-neutral-400">/</span>
+          </>
+        )}
+        {product.category && <span>{product.category.name}</span>}
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-2">
         {/* Galeria */}
-        <div className="space-y-3">
-          <div
-            className="aspect-[4/3] w-full rounded-2xl border bg-neutral-100"
-            style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-          />
+        <div>
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border bg-neutral-50">
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage: `url(${cover})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+              aria-label={product.name}
+            />
+            {product.sale && !selectedVariant?.price ? (
+              <span className="absolute left-4 top-4 rounded-full bg-orange-600/95 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                Save{" "}
+                {product.sale.percentOff ? `${product.sale.percentOff}%` : ""}
+                {product.sale.priceOff
+                  ? ` ${money.format(product.sale.priceOff)}`
+                  : ""}
+              </span>
+            ) : null}
+          </div>
+
           {gallery.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="mt-3 grid grid-cols-4 gap-2">
               {gallery.slice(1, 5).map((img, i) => (
                 <div
                   key={i}
-                  className="aspect-square rounded-lg border bg-neutral-100"
-                  style={{
-                    backgroundImage: `url(${img})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
+                  className="aspect-square overflow-hidden rounded-xl border bg-neutral-50"
                   title={`Image ${i + 2}`}
-                />
+                >
+                  <div
+                    className="h-full w-full transition-transform duration-300 hover:scale-[1.04]"
+                    style={{
+                      backgroundImage: `url(${img})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Info */}
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold">{p.name}</h1>
+        {/* Painel */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-neutral-900">
+            {product.name}
+          </h1>
 
-          {p.category && (
-            <div className="text-xs text-neutral-500">
-              {p.category.parent ? `${p.category.parent.name} › ` : ""}
-              {p.category.name}
-            </div>
+          {product.description && (
+            <p className="mt-2 max-w-prose text-sm text-neutral-700">
+              {product.description}
+            </p>
           )}
 
-          {/* Bloco principal de preço / variant / pdf */}
-          <div className="rounded-xl border bg-white p-4 space-y-3">
-            {/* Preço */}
-            <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold">
-                {typeof displayPrice === "number"
-                  ? money.format(displayPrice)
-                  : "Request a quote"}
+          <div className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
+            {/* Preço + package size */}
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex items-baseline gap-3">
+                <span className="text-2xl font-semibold text-neutral-900">
+                  {hasNumericPrice
+                    ? money.format(effectivePrice as number)
+                    : "Request a quote"}
+                </span>
+                {typeof wasPrice === "number" && (
+                  <span className="text-sm text-neutral-500 line-through">
+                    {money.format(wasPrice)}
+                  </span>
+                )}
               </div>
-              {p.packageSize && (
+
+              {product.packageSize && (
                 <div className="text-xs text-neutral-500">
-                  Size: {p.packageSize}
+                  Size: {product.packageSize}
                 </div>
               )}
             </div>
 
-            {/* Variants */}
+            {/* Variantes */}
             {variants.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-neutral-700">
+              <div className="mt-5">
+                <div className="mb-2 text-xs font-medium text-neutral-700">
                   Select a size/variant
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -251,11 +316,10 @@ export default function ProductPage() {
                           type="button"
                           onClick={() => setSelectedVarId(v.id)}
                           className={[
-                            "rounded-lg border px-3 py-1.5 text-xs",
-                            "transition-colors",
+                            "rounded-lg border px-3 py-2 text-sm transition-colors",
                             isSel
-                              ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                              : "border-neutral-300 hover:bg-neutral-50",
+                              ? "border-orange-600 bg-orange-50 text-orange-800"
+                              : "border-neutral-300 text-neutral-800 hover:bg-neutral-50",
                           ].join(" ")}
                         >
                           {label}
@@ -267,43 +331,96 @@ export default function ProductPage() {
             )}
 
             {/* PDF */}
-            {p.pdfUrl && (
-              <div className="pt-2 border-t">
+            {product.pdfUrl && (
+              <div className="mt-5 rounded-xl border bg-neutral-50 p-3">
                 <a
-                  href={p.pdfUrl}
+                  href={product.pdfUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-orange-600 underline decoration-dotted underline-offset-2 hover:text-orange-700"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-orange-700 hover:text-orange-800"
                 >
+                  <FileText className="h-4 w-4" />
                   View product datasheet (PDF)
                 </a>
               </div>
             )}
 
             {/* CTA */}
-            <div className="pt-1">
-              <button
-                onClick={addToCart}
-                className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-              >
-                Add to cart
-              </button>
+            <div className="mt-5">
+              {hasNumericPrice ? (
+                <button
+                  onClick={addToBag}
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700"
+                >
+                  Add to bag
+                </button>
+              ) : (
+                // 🔁 Agora também adiciona à sacola (não navega pro checkout)
+                <button
+                  onClick={addToBag}
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-3 text-sm font-semibold text-orange-600 transition hover:bg-orange-50"
+                  title="Add to bag to request a quote"
+                >
+                  Request a quote
+                </button>
+              )}
+
+              {/* feedback “Added” */}
+              {justAdded && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Added to bag —{" "}
+                  <Link
+                    to="/checkout"
+                    className="underline decoration-dotted underline-offset-2 hover:text-emerald-900"
+                  >
+                    view bag
+                  </Link>
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-2 text-xs text-neutral-500">
+                <ShieldCheck className="h-4 w-4 text-orange-600" />
+                Secure & fast response. Add multiple items for a combined quote.
+              </div>
             </div>
           </div>
 
-          {/* Descrição */}
-          {p.description && (
-            <div className="prose prose-sm max-w-none">
-              <p className="whitespace-pre-line">{p.description}</p>
-            </div>
-          )}
+          {/* Metadados */}
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {product.category && (
+              <div className="rounded-xl border bg-white p-4">
+                <div className="text-xs font-semibold text-neutral-500">
+                  Category
+                </div>
+                <div className="mt-1 text-sm text-neutral-900">
+                  {product.category.parent
+                    ? `${product.category.parent.name} → `
+                    : ""}
+                  {product.category.name}
+                </div>
+              </div>
+            )}
+            {typeof product.stock === "number" && (
+              <div className="rounded-xl border bg-white p-4">
+                <div className="text-xs font-semibold text-neutral-500">
+                  Availability
+                </div>
+                <div className="mt-1 text-sm text-neutral-900">
+                  {product.stock > 0 ? "In stock" : "Made to order"}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Mais fotos (fallback para as imagens do produto se a variante não tiver galeria própria além da capa) */}
+      {/* Galeria extra */}
       {gallery.length > 4 && (
-        <div className="mt-8">
-          <h2 className="mb-2 text-lg font-semibold">More photos</h2>
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-neutral-900">
+            More photos
+          </h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {gallery.slice(4).map((img, i) => (
               <div

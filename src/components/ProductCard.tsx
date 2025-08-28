@@ -1,128 +1,131 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { useCart } from "@/components/cart/CartProvider";
+import type { Product } from "@/types";
 import { money } from "@/utils/money";
 
 type Props = {
   id: string;
-  slug?: string;
+  slug: string;
   name: string;
   description?: string;
-  price?: number; // pode vir oculto no público
-  images?: string[];
-  imageUrl?: string | null; // fallback legado
+  price?: number;
+  images: string[];
+  imageUrl?: string | null;
   packageSize?: string | null;
   pdfUrl?: string | null;
-  stock?: number;
+  stock: number;
+  // opcional vindo do backend
+  sale?: Product["sale"];
 };
 
-export function ProductCard({
-  id,
-  slug,
-  name,
-  description,
-  price,
-  images,
-  imageUrl,
-  packageSize,
-  pdfUrl,
-  stock,
-}: Props) {
-  const { add } = useCart();
+export function ProductCard(props: Props) {
+  const {
+    id,
+    slug,
+    name,
+    description,
+    price,
+    images,
+    imageUrl,
+    packageSize,
+    pdfUrl,
+    sale,
+  } = props;
 
   const cover =
     (images && images.length > 0 ? images[0] : undefined) ??
     imageUrl ??
-    // 1x1 transparente (evita layout shift)
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-  const outOfStock = typeof stock === "number" && stock <= 0;
   const hasPrice = typeof price === "number" && Number.isFinite(price);
-  // quando o preço estiver oculto, enviamos `undefined` -> carrinho trata como “quote required”
-  const unitPrice = hasPrice ? (price as number) : undefined;
-
-  const productHref = `/product/${encodeURIComponent(slug || id)}`;
+  const href = `/product/${encodeURIComponent(slug || id)}`;
 
   return (
-    <motion.article
-      whileHover={{ y: -2 }}
-      className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition"
+    <article
+      className={[
+        "group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white",
+        "transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+      ].join(" ")}
     >
-      <Link to={productHref} className="block" aria-label={`Open ${name} page`}>
+      {/* image */}
+      <Link to={href} className="block">
         <div
-          className="relative aspect-[4/3] w-full bg-neutral-100"
+          className="aspect-[4/3] w-full bg-neutral-100"
           style={{
             backgroundImage: `url(${cover})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
+          aria-label={name}
         />
       </Link>
 
-      <div className="space-y-3 p-4">
-        <h3 className="text-lg font-semibold leading-tight line-clamp-2">
-          {name}
-        </h3>
-
-        {packageSize ? (
-          <div className="text-xs text-neutral-500">Size: {packageSize}</div>
-        ) : null}
-
-        {description ? (
-          <p className="line-clamp-2 text-sm text-neutral-600">{description}</p>
-        ) : null}
-
-        <div className="flex items-center justify-between">
-          <span className="text-base font-bold">
-            {hasPrice ? (
-              money.format(unitPrice!)
-            ) : (
-              <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[13px] font-medium text-orange-600 ring-1 ring-inset ring-orange-200">
-                Request a quote
-              </span>
-            )}
-          </span>
-
-          <div className="flex items-center gap-2">
-            {/* View — mesma linguagem visual do “Quote” (laranja) */}
-            <Link
-              to={productHref}
-              className="rounded-lg border border-orange-600 px-3 py-2 text-sm font-semibold text-orange-600 hover:bg-orange-50"
-              aria-label="View product"
-              title="View"
-            >
-              View
+      {/* content */}
+      <div className="flex flex-col gap-3 p-4">
+        <div className="min-h-[2.5rem]">
+          <h3 className="line-clamp-2 text-sm font-semibold text-neutral-900">
+            <Link to={href} className="hover:underline">
+              {name}
             </Link>
-
-            {/* Add to cart */}
-            <button
-              onClick={() =>
-                add({ id, name, price: unitPrice, imageUrl: cover }, 1)
-              }
-              className="rounded-lg border px-3 py-2 text-sm font-medium hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-50"
-              disabled={outOfStock}
-              aria-disabled={outOfStock}
-              aria-label={outOfStock ? "Out of stock" : "Add to cart"}
-              title={outOfStock ? "Out of stock" : "Add"}
-            >
-              {outOfStock ? "Out of stock" : "Add"}
-            </button>
-          </div>
+          </h3>
+          {packageSize ? (
+            <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500">
+              {packageSize}
+            </p>
+          ) : null}
         </div>
 
-        {pdfUrl ? (
-          <div className="pt-1">
+        {/* price / quote / sale */}
+        <div className="flex items-center justify-between">
+          {hasPrice ? (
+            sale?.salePrice ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-bold text-orange-600">
+                  {money.format(sale.salePrice)}
+                </span>
+                <span className="text-xs text-neutral-500 line-through">
+                  {money.format(price as number)}
+                </span>
+              </div>
+            ) : (
+              <div className="text-sm font-semibold text-neutral-900">
+                {money.format(price as number)}
+              </div>
+            )
+          ) : (
+            <div className="text-sm font-medium text-neutral-600">
+              Request a quote
+            </div>
+          )}
+
+          {pdfUrl ? (
             <a
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-800"
+              className="text-xs text-orange-600 underline decoration-dotted underline-offset-2 hover:text-orange-700"
             >
-              View datasheet (PDF)
+              Datasheet (PDF)
             </a>
-          </div>
-        ) : null}
+          ) : (
+            <span className="text-xs text-neutral-400">No datasheet</span>
+          )}
+        </div>
+
+        {/* CTA outlined: texto laranja, fundo branco, borda laranja */}
+        <div>
+          <Link
+            to={href}
+            className={[
+              "inline-flex w-full items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold",
+              "border-orange-500 text-orange-600 bg-white",
+              "hover:bg-orange-500 hover:text-white",
+              "transition-colors",
+            ].join(" ")}
+          >
+            View details
+          </Link>
+        </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

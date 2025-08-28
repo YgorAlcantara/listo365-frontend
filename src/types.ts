@@ -132,3 +132,39 @@ export type Page<T> = {
   pageSize: number;
   rows: T[];
 };
+
+// src/types/cart.ts
+export type CartItem = {
+  /** productId ou productId::variantId */
+  id: string;
+  /** Nome mostrado (ex.: "Pisos Perfectos (1 Gallon)") */
+  name: string;
+  /** Preço unitário; undefined => “Request a quote” */
+  price?: number;
+  /** Miniatura opcional para exibir no Cart */
+  imageUrl?: string | null;
+  /** Metadados de variante (opcionais) */
+  variantId?: string | null;
+  variantName?: string | null;
+
+  /** Quantidade no carrinho */
+  quantity: number;
+  /** Chave interna para a UI; pode ser o próprio id */
+  key: string;
+};
+
+export type CartState = {
+  items: CartItem[];
+};
+
+export type CartContextValue = {
+  items: CartItem[];
+  count: number;
+  /** Soma apenas itens com preço numérico */
+  subtotal: number;
+  add: (
+    item: Omit<CartItem, "quantity" | "key"> & { quantity?: number }
+  ) => void;
+  remove: (id: string) => void;
+  clear: () => void;
+};

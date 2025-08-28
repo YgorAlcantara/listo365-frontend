@@ -1,110 +1,182 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-export type CartItem = {
-  id: string; // e.g., productId::variantId or productId::base
+type AddInput = {
+  id: string; // "productId" ou "productId::variantId"
   name: string;
-  price?: number; // optional: hidden/public price control
-  imageUrl: string;
-  quantity: number;
+  price?: number; // ausente => item de cotação (quote-only)
+  imageUrl?: string | null;
+  variantId?: string | null;
+  variantName?: string | null;
+  quantity?: number; // default 1
 };
 
-type CartContextType = {
+export type CartItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  price?: number;
+  imageUrl?: string | null;
+  variantId?: string | null;
+  variantName?: string | null;
+};
+
+type CartContextValue = {
   items: CartItem[];
-  count: number;
-  total: number; // sums only priced items
-  hasUnpriced: boolean; // true if any item has no public price
-  add: (item: Omit<CartItem, "quantity">, qty?: number) => void;
-  inc: (id: string, step?: number) => void;
-  dec: (id: string, step?: number) => void;
-  setQty: (id: string, qty: number) => void;
+  count: number; // soma das quantidades
+  subtotal: number; // soma apenas de itens com preço (quote-only conta 0)
+  add: (input: AddInput) => void;
   remove: (id: string) => void;
+  increment: (id: string) => void;
+  decrement: (id: string) => void;
+  setQuantity: (id: string, qty: number) => void;
   clear: () => void;
 };
 
-const CartContext = createContext<CartContextType | null>(null);
+const CartContext = createContext<CartContextValue | undefined>(undefined);
+const STORAGE_KEY = "cart_v2";
 
-// increment version if you change structure to avoid conflicts
-const KEY = "listo365.cart.v2";
+function clampQty(n: number) {
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0, Math.min(999, Math.trunc(n)));
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-
-  useEffect(() => {
+  const [items, setItems] = useState<CartItem[]>(() => {
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setItems(JSON.parse(raw));
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .map((it) => ({
+          id: String(it.id),
+          name: String(it.name),
+          quantity: clampQty(Number(it.quantity ?? 1)),
+          price:
+            typeof it.price === "number" && Number.isFinite(it.price)
+              ? Number(it.price)
+              : undefined,
+          imageUrl: it.imageUrl ?? null,
+          variantId: it.variantId ?? null,
+          variantName: it.variantName ?? null,
+        }))
+        .filter((it) => it.id && it.name && it.quantity > 0);
     } catch {
-      // ignore corrupted storage
+      return [];
     }
-  }, []);
+  });
 
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(items));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const api = useMemo<CartContextType>(() => {
-    const hasUnpriced = items.some(
-      (i) => !(typeof i.price === "number" && Number.isFinite(i.price))
+  // soma quantidades
+  const count = useMemo(
+    () => items.reduce((acc, it) => acc + clampQty(it.quantity), 0),
+    [items]
+  );
+
+  // subtotal seguro: quote-only (sem price) entra como 0
+  const subtotal = useMemo(
+    () =>
+      items.reduce((acc, it) => {
+        const unit = typeof it.price === "number" ? it.price : 0;
+        return acc + unit * clampQty(it.quantity);
+      }, 0),
+    [items]
+  );
+
+  function add(input: AddInput) {
+    setItems((prev) => {
+      const qty = clampQty(input.quantity ?? 1);
+      const idx = prev.findIndex((it) => it.id === input.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          // acumula quantidade
+          quantity: clampQty(next[idx].quantity + qty),
+          // atualiza props “leves” (imagem, variant) se vierem
+          price:
+            typeof input.price === "number" && Number.isFinite(input.price)
+              ? input.price
+              : next[idx].price,
+          imageUrl: input.imageUrl ?? next[idx].imageUrl,
+          variantId: input.variantId ?? next[idx].variantId,
+          variantName: input.variantName ?? next[idx].variantName,
+        };
+        return next;
+      }
+      const nuevo: CartItem = {
+        id: input.id,
+        name: input.name,
+        quantity: qty,
+        price:
+          typeof input.price === "number" && Number.isFinite(input.price)
+            ? input.price
+            : undefined,
+        imageUrl: input.imageUrl ?? null,
+        variantId: input.variantId ?? null,
+        variantName: input.variantName ?? null,
+      };
+      return [...prev, nuevo];
+    });
+  }
+
+  function remove(id: string) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
+  }
+
+  function increment(id: string) {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id ? { ...it, quantity: clampQty(it.quantity + 1) } : it
+      )
     );
+  }
 
-    const total = Number(
-      items
-        .reduce((acc, i) => {
-          if (typeof i.price === "number" && Number.isFinite(i.price)) {
-            return acc + i.price * i.quantity;
-          }
-          return acc;
-        }, 0)
-        .toFixed(2)
+  function decrement(id: string) {
+    setItems((prev) =>
+      prev
+        .map((it) =>
+          it.id === id ? { ...it, quantity: clampQty(it.quantity - 1) } : it
+        )
+        .filter((it) => it.quantity > 0)
     );
+  }
 
-    return {
-      items,
-      count: items.reduce((acc, i) => acc + i.quantity, 0),
-      total,
-      hasUnpriced,
+  function setQuantity(id: string, qty: number) {
+    const q = clampQty(qty);
+    setItems((prev) =>
+      prev
+        .map((it) => (it.id === id ? { ...it, quantity: q } : it))
+        .filter((it) => it.quantity > 0)
+    );
+  }
 
-      add: (item, qty = 1) =>
-        setItems((prev) => {
-          const found = prev.find((p) => p.id === item.id);
-          if (found) {
-            return prev.map((p) =>
-              p.id === item.id ? { ...p, quantity: p.quantity + qty } : p
-            );
-          }
-          return [...prev, { ...item, quantity: qty }];
-        }),
+  function clear() {
+    setItems([]);
+  }
 
-      inc: (id, step = 1) =>
-        setItems((prev) =>
-          prev.map((p) =>
-            p.id === id ? { ...p, quantity: p.quantity + step } : p
-          )
-        ),
+  const value: CartContextValue = {
+    items,
+    count,
+    subtotal,
+    add,
+    remove,
+    increment,
+    decrement,
+    setQuantity,
+    clear,
+  };
 
-      dec: (id, step = 1) =>
-        setItems((prev) =>
-          prev.flatMap((p) => {
-            if (p.id !== id) return [p];
-            const q = p.quantity - step;
-            return q <= 0 ? [] : [{ ...p, quantity: q }];
-          })
-        ),
-
-      setQty: (id, qty) =>
-        setItems((prev) =>
-          prev.flatMap((p) => {
-            if (p.id !== id) return [p];
-            return qty <= 0 ? [] : [{ ...p, quantity: qty }];
-          })
-        ),
-
-      remove: (id) => setItems((prev) => prev.filter((p) => p.id !== id)),
-      clear: () => setItems([]),
-    };
-  }, [items]);
-
-  return <CartContext.Provider value={api}>{children}</CartContext.Provider>;
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
 export function useCart() {
