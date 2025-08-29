@@ -1,3 +1,4 @@
+// src/App.tsx
 import { useEffect } from "react";
 import {
   BrowserRouter,
@@ -11,6 +12,11 @@ import { Toaster } from "react-hot-toast";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { Header } from "@/components/Header";
 import PrivateRoute from "@/components/PrivateRoute";
+
+// 👉 novos imports
+import AccentBar from "@/components/ui/AccentBar";
+import GetInTouch from "@/components/GetInTouch"; // default export (GetInTouchLine)
+import Footer from "@/components/Footer";
 
 // Public pages
 import Home from "@/pages/Home";
@@ -26,20 +32,29 @@ import AdminOrderDetail from "@/pages/Admin/AdminOrderDetail";
 import Categories from "@/pages/Admin/Categories";
 import Promotions from "@/pages/Admin/Promotions";
 
-// Layout for public routes (Header + container)
+// Layout para rotas públicas (Header + barra + conteúdo + CTA + footer)
 function PublicShell() {
   return (
     <>
       <Header />
+      {/* barra degradê laranja→vermelho */}
+      <AccentBar />
+
       <main className="mx-auto max-w-7xl px-4 py-8">
         <Outlet />
       </main>
+
+      {/* CTA antes do rodapé (apenas no público) */}
+      <section className="-mb-8">
+        <GetInTouch />
+      </section>
+      <Footer />
     </>
   );
 }
 
 export default function App() {
-  // Small warm-up so the first interaction feels snappy
+  // Warm-up
   useEffect(() => {
     const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
     fetch(`${base}/health`, { cache: "no-store" }).catch(() => {});
@@ -49,18 +64,17 @@ export default function App() {
     <BrowserRouter>
       <CartProvider>
         <Routes>
-          {/* PUBLIC ROUTES with shared layout */}
+          {/* PUBLIC ROUTES com layout público */}
           <Route element={<PublicShell />}>
             <Route path="/" element={<Home />} />
             <Route path="/checkout" element={<Checkout />} />
-            {/* IMPORTANT: param name is idOrSlug (camel-cased S) */}
             <Route path="/product/:idOrSlug" element={<ProductPage />} />
           </Route>
 
-          {/* ADMIN LOGIN (no public header) */}
+          {/* ADMIN LOGIN (sem PublicShell) */}
           <Route path="/admin/login" element={<Login />} />
 
-          {/* ADMIN ROUTES (guarded) */}
+          {/* ADMIN ROUTES (sem GetInTouch/Footer) */}
           <Route
             path="/admin"
             element={
@@ -76,7 +90,7 @@ export default function App() {
             <Route path="promotions" element={<Promotions />} />
           </Route>
 
-          {/* Catch-all -> Home (or plug a dedicated 404 page later) */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 

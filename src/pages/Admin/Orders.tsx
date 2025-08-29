@@ -1,5 +1,5 @@
 // src/pages/Admin/Orders.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/services/api";
 import { money } from "@/utils/money";
 import type { OrderInquiry, OrderItem, OrderStatus, Page } from "@/types";
@@ -20,7 +20,7 @@ function statusBadge(s: OrderStatus) {
     "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium";
   switch (s) {
     case "RECEIVED":
-      return `${base} bg-blue-100 text-blue-700`;
+      return `${base} bg-orange-100 text-orange-700`;
     case "IN_PROGRESS":
       return `${base} bg-amber-100 text-amber-700`;
     case "COMPLETED":
@@ -34,10 +34,14 @@ function statusBadge(s: OrderStatus) {
 
 function fmtDate(s?: string) {
   if (!s) return "—";
-  return new Date(s).toLocaleString();
+  try {
+    return new Date(s).toLocaleString();
+  } catch {
+    return s;
+  }
 }
 
-// Prisma Decimal can arrive as string; normalize safely
+// Prisma Decimal pode vir como string; normaliza
 function asNumber(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -63,6 +67,10 @@ export default function AdminOrders() {
     rows: [],
   });
 
+  // controle para evitar race-condition (respostas antigas sobrescrevendo novas)
+  const reqIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+
   // detail drawer
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderInquiry | null>(null);
@@ -75,19 +83,37 @@ export default function AdminOrders() {
     [data.total, pageSize]
   );
 
-  async function fetchList() {
+  async function fetchList({ keepPage = false }: { keepPage?: boolean } = {}) {
+    // cancela requisição anterior se ainda estiver pendente
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const myId = ++reqIdRef.current;
+    if (!keepPage) setPage((p) => p); // no-op, só pra coerência na intenção
+
     setLoading(true);
     try {
       const params: any = { page, pageSize };
       if (q.trim()) params.q = q.trim();
       if (tab !== "ALL") params.status = tab;
-      const r = await api.get<Page<OrderInquiry>>("/orders", { params });
-      setData(r.data);
+
+      // axios aceita o sinal via { signal }
+      const r = await api.get<Page<OrderInquiry>>("/orders", {
+        params,
+        signal: controller.signal as any,
+      });
+
+      // apenas aplica se ainda é a requisição mais recente
+      if (myId === reqIdRef.current) {
+        setData(r.data);
+      }
     } catch (e: any) {
+      if (e?.name === "CanceledError" || e?.message === "canceled") return;
       console.error(e);
       toast.error(e?.response?.data?.error || "Failed to load orders");
     } finally {
-      setLoading(false);
+      if (myId === reqIdRef.current) setLoading(false);
     }
   }
 
@@ -119,9 +145,11 @@ export default function AdminOrders() {
     fetchList();
   }
 
+  // Mudança de status — otimista + sync
   async function changeStatus(next: OrderStatus) {
     if (!detail) return;
 
+    // confirmações especiais
     if (next === "COMPLETED") {
       const ok = confirm(
         "Mark this order as COMPLETED?\nThis will decrement product stock based on item quantities."
@@ -136,12 +164,34 @@ export default function AdminOrders() {
     }
 
     setSaving(true);
+
+    // otimista no drawer e na tabela
+    const prev = detail.status;
+    setDetail({ ...detail, status: next });
+    setData((d) => ({
+      ...d,
+      rows: d.rows.map((o) =>
+        o.id === detail.id ? { ...o, status: next } : o
+      ),
+    }));
+
     try {
       await api.patch(`/orders/${detail.id}/status`, { status: next });
       toast.success(`Status changed to ${next.replace("_", " ")}`);
-      await fetchDetail(detail.id);
-      await fetchList();
+      // re-sync fino (detalhe + lista) sem piscar
+      await Promise.all([
+        fetchDetail(detail.id),
+        fetchList({ keepPage: true }),
+      ]);
     } catch (e: any) {
+      // rollback
+      setDetail((d) => (d ? { ...d, status: prev } : d));
+      setData((d) => ({
+        ...d,
+        rows: d.rows.map((o) =>
+          o.id === detail.id ? { ...o, status: prev } : o
+        ),
+      }));
       console.error(e);
       toast.error(e?.response?.data?.error || "Failed to change status");
     } finally {
@@ -155,8 +205,10 @@ export default function AdminOrders() {
     try {
       await api.patch(`/orders/${detail.id}/note`, { note, adminNote });
       toast.success("Notes saved");
-      await fetchDetail(detail.id);
-      await fetchList();
+      await Promise.all([
+        fetchDetail(detail.id),
+        fetchList({ keepPage: true }),
+      ]);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.response?.data?.error || "Failed to save notes");
@@ -185,14 +237,25 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Admin — Orders</h1>
-        <button
-          onClick={downloadCsv}
-          className="rounded border px-3 py-2 text-sm hover:bg-neutral-50"
-        >
-          Export contacts (CSV)
-        </button>
+        <h1 className="text-2xl font-bold"></h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchList({ keepPage: true })}
+            className="rounded border px-3 py-2 text-sm hover:bg-neutral-50"
+            disabled={loading}
+            title="Refresh list"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+          <button
+            onClick={downloadCsv}
+            className="rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800"
+          >
+            Export contacts (CSV)
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -221,10 +284,10 @@ export default function AdminOrders() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search by id, customer, email, phone…"
-          className="w-80 max-w-full rounded border px-3 py-2 text-sm"
+          className="w-96 max-w-full rounded-lg border px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
         />
         <button
-          className="rounded bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+          className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
           disabled={loading}
         >
           {loading ? "Loading…" : "Search"}
@@ -246,12 +309,28 @@ export default function AdminOrders() {
           </thead>
           <tbody>
             {data.rows.map((o) => (
-              <tr key={o.id} className="border-t">
-                <td className="px-3 py-2">{fmtDate(o.createdAt)}</td>
+              <tr key={o.id} className="border-t align-top">
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {fmtDate(o.createdAt)}
+                </td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{o.customer?.name || "—"}</div>
-                  <div className="text-xs text-neutral-500">
-                    {o.customer?.email || "—"}
+                  <div className="mt-0.5 grid gap-0.5 text-xs text-neutral-600">
+                    <span>{o.customer?.email || "—"}</span>
+                    <span>{o.customer?.phone || "—"}</span>
+                    {o.address ? (
+                      <span className="text-[11px] text-neutral-500">
+                        {[
+                          o.address.city || "",
+                          o.address.state || "",
+                          o.address.country || "",
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-neutral-400">—</span>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-2">{o.items.length}</td>
@@ -330,7 +409,7 @@ export default function AdminOrders() {
             </div>
 
             {/* Customer */}
-            <div className="mt-4 rounded border p-3">
+            <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Customer</h4>
               <div className="text-sm">
                 <div>
@@ -350,7 +429,7 @@ export default function AdminOrders() {
             </div>
 
             {/* Address */}
-            <div className="mt-4 rounded border p-3">
+            <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Address</h4>
               {detail.address ? (
                 <div className="text-sm">
@@ -371,7 +450,7 @@ export default function AdminOrders() {
             </div>
 
             {/* Items */}
-            <div className="mt-4 rounded border p-3">
+            <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Items</h4>
               <div className="space-y-2">
                 {detail.items.map((it) => (
@@ -400,7 +479,7 @@ export default function AdminOrders() {
             </div>
 
             {/* Notes */}
-            <div className="mt-4 space-y-3 rounded border p-3">
+            <div className="mt-4 space-y-3 rounded-2xl border bg-white p-3">
               <h4 className="font-medium">Notes</h4>
               <div>
                 <label className="mb-1 block text-sm">Customer note</label>
@@ -432,7 +511,7 @@ export default function AdminOrders() {
             </div>
 
             {/* Status actions */}
-            <div className="mt-4 rounded border p-3">
+            <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Change status</h4>
               <div className="flex flex-wrap gap-2">
                 {(

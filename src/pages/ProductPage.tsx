@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { api } from "@/services/api";
 import type { Product } from "@/types";
 import { money } from "@/utils/money";
@@ -11,21 +11,34 @@ import {
   ShieldCheck,
   CheckCircle2,
 } from "lucide-react";
+import { fetchProductSmart, getCachedProduct } from "@/services/productCache";
 
-// Variante com imagem (compat extra; se o backend ainda não manda, não quebra)
 type VariantExtra = { imageUrl?: string | null; images?: string[] | null };
 
 export default function ProductPage() {
   const { idOrSlug } = useParams<{ idOrSlug: string }>();
-  const [p, setP] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const preview = (location.state as any)?.preview as
+    | Partial<Product>
+    | undefined;
+
+  const [p, setP] = useState<Product | null>(() => {
+    if (preview && preview.name) return (preview as Product) || null;
+    if (idOrSlug) {
+      const c = getCachedProduct(idOrSlug as string); // ✅ força string
+      if (c) return c;
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState(!p);
   const [notFound, setNotFound] = useState(false);
   const [selectedVarId, setSelectedVarId] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState(false);
+  const syncing = useRef(false);
 
   const { add } = useCart();
 
-  // Se o axios tem Authorization (admin), pedimos ?all=1
   const wantsAll = useMemo(() => {
     const h: any = (api as any)?.defaults?.headers;
     const auth =
@@ -38,54 +51,47 @@ export default function ProductPage() {
 
   useEffect(() => {
     let alive = true;
+    if (!idOrSlug) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
 
-    async function load() {
-      if (!idOrSlug) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setNotFound(false);
-      setJustAdded(false);
-
+    async function sync() {
       try {
-        const r = await api.get<Product>(
-          `/products/${encodeURIComponent(idOrSlug)}`,
-          { params: wantsAll ? { all: 1 } : undefined }
-        );
+        syncing.current = true;
+        const prod = await fetchProductSmart(idOrSlug as string, wantsAll); // ✅ força string
         if (!alive) return;
-
-        const prod = r.data ?? null;
         setP(prod);
         setNotFound(!prod);
-
-        if (prod?.variants && prod.variants.length) {
+        if (!selectedVarId && prod?.variants?.length) {
           const firstActive = prod.variants.find((v) => v.active !== false);
           setSelectedVarId(firstActive?.id ?? null);
-        } else {
-          setSelectedVarId(null);
         }
-      } catch (err: any) {
+      } catch {
         if (!alive) return;
-        if (err?.response?.status === 404) {
-          setNotFound(true);
-        } else {
-          console.error("load product failed", err);
-          setNotFound(true);
-        }
+        setNotFound(true);
       } finally {
         if (alive) setLoading(false);
+        syncing.current = false;
       }
     }
 
-    load();
+    if (p) {
+      setLoading(false);
+      sync();
+    } else {
+      setLoading(true);
+      sync();
+    }
+
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idOrSlug, wantsAll]);
 
-  if (loading) {
+  if (loading && !p) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="inline-flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm">
@@ -118,7 +124,6 @@ export default function ProductPage() {
     );
   }
 
-  // ✅ A partir daqui, p existe:
   const product = p as Product;
 
   const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -190,7 +195,6 @@ export default function ProductPage() {
       variantName: v?.name ?? null,
     });
 
-    // pequeno feedback
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1800);
   }
@@ -355,7 +359,6 @@ export default function ProductPage() {
                   Add to bag
                 </button>
               ) : (
-                // 🔁 Agora também adiciona à sacola (não navega pro checkout)
                 <button
                   onClick={addToBag}
                   className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-3 text-sm font-semibold text-orange-600 transition hover:bg-orange-50"
@@ -365,7 +368,6 @@ export default function ProductPage() {
                 </button>
               )}
 
-              {/* feedback “Added” */}
               {justAdded && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
                   <CheckCircle2 className="h-4 w-4" />
@@ -386,7 +388,6 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* Metadados */}
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {product.category && (
               <div className="rounded-xl border bg-white p-4">
@@ -415,7 +416,6 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Galeria extra */}
       {gallery.length > 4 && (
         <div className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-neutral-900">
@@ -436,6 +436,9 @@ export default function ProductPage() {
           </div>
         </div>
       )}
+      <div className="mt-2 text-xs text-neutral-500">
+        {syncing.current ? "Updating details…" : "\u00A0"}
+      </div>
     </div>
   );
 }

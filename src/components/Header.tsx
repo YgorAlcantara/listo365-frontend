@@ -6,7 +6,8 @@ import { CartMenu } from "@/components/cart/CartMenu";
 import { useAuth } from "@/hooks/useAuth";
 
 // SVG local (você já apontou pra pasta assets/logo)
-import logo from "@/assets/logo/Listologo2.svg";
+import logo from "@/assets/logo/Lst365Logo4.png";
+import AccentBar from "./ui/AccentBar";
 // Ou use uma URL do .env se preferir CDN
 const logoSrc = (import.meta as any).env?.VITE_LOGO_URL || logo;
 
@@ -41,7 +42,7 @@ export function Header() {
         COLORS.hairline,
       ].join(" ")}
     >
-      <div className="mx-auto flex h-28 lg:h-24 max-w-7xl items-center justify-between px-4 md:px-6">
+      <div className="mx-auto flex h-32 lg:h-36 max-w-7xl items-center justify-between px-4 md:px-6">
         {/* Logo */}
         <Link
           to="/"
@@ -52,7 +53,7 @@ export function Header() {
           <img
             src={logoSrc}
             alt="Listo365 Cleaning Solutions"
-            className="h-14 md:h-28 lg:h-28 w-auto"
+            className="h-14 md:h-20 lg:h-24 w-auto"
             draggable={false}
           />
         </Link>

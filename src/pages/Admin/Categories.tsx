@@ -1,3 +1,4 @@
+// src/pages/admin/Categories.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/services/api";
 import { toast } from "react-hot-toast";
@@ -94,35 +95,52 @@ export default function Categories() {
     }
   }
 
+  // 🔸 Altura unificada (40px)
+  const controlHeight = "h-10";
+
+  // Inputs & select — mesma altura que os botões
+  const inputCls =
+    `${controlHeight} w-56 rounded-lg border border-neutral-300 px-3 ` +
+    "text-sm text-neutral-900 placeholder:text-neutral-400 " +
+    "focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30";
+
+  // Botões “slim”, mesma altura dos inputs
+  const btnBase = `inline-flex items-center justify-center ${controlHeight} rounded-lg px-2 text-xs font-semibold disabled:opacity-60`;
+  const btnPrimary = `${btnBase} bg-orange-600 text-white hover:bg-orange-700`;
+  const btnOutline = `${btnBase} border border-orange-300 bg-white text-orange-700 hover:bg-orange-50`;
+  const btnGhost = `${btnBase} border border-neutral-300 bg-white hover:bg-neutral-50`;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <h1 className="text-2xl font-bold">Categories</h1>
+        <h1 className="text-2xl font-bold text-neutral-900"></h1>
 
         <div className="flex flex-col gap-2 sm:flex-row">
+          {/* Create parent */}
           <div className="flex items-center gap-2">
             <input
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
               placeholder="New parent name"
-              className="w-56 rounded-lg border px-3 py-2 text-sm"
+              className={inputCls}
               disabled={busy !== null}
             />
             <button
               onClick={createParent}
               disabled={!parentName.trim() || busy !== null}
-              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className={btnPrimary}
             >
               {busy === "create-parent" ? "Creating…" : "Add parent"}
             </button>
           </div>
 
+          {/* Create sub */}
           <div className="flex items-center gap-2">
             <select
               value={subParentId}
               onChange={(e) => setSubParentId(e.target.value)}
-              className="w-56 rounded-lg border px-3 py-2 text-sm"
+              className={inputCls}
               disabled={busy !== null || flatParents.length === 0}
             >
               <option value="">Parent…</option>
@@ -132,26 +150,29 @@ export default function Categories() {
                 </option>
               ))}
             </select>
+
             <input
               value={subName}
               onChange={(e) => setSubName(e.target.value)}
               placeholder="New subcategory name"
-              className="w-56 rounded-lg border px-3 py-2 text-sm"
+              className={inputCls}
               disabled={busy !== null}
             />
+
             <button
               onClick={createSub}
               disabled={!subParentId || !subName.trim() || busy !== null}
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-50 disabled:opacity-60"
+              className={btnOutline}
             >
               {busy === "create-sub" ? "Creating…" : "Add subcategory"}
             </button>
           </div>
 
+          {/* Seed defaults */}
           <button
             onClick={seedDefaults}
             disabled={busy !== null}
-            className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-50 disabled:opacity-60"
+            className={btnGhost}
           >
             {busy === "seed" ? "Seeding…" : "Seed defaults"}
           </button>
@@ -159,13 +180,13 @@ export default function Categories() {
       </div>
 
       {/* Table */}
-      <div className="overflow-auto rounded-2xl border bg-white">
+      <div className="overflow-auto rounded-2xl border border-neutral-200 bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
-            <tr>
-              <th className="px-3 py-2 text-left">Parent</th>
-              <th className="px-3 py-2 text-left">Slug</th>
-              <th className="px-3 py-2 text-left">Subcategories</th>
+            <tr className="text-left text-neutral-700">
+              <th className="px-3 py-2 font-medium">Parent</th>
+              <th className="px-3 py-2 font-medium">Slug</th>
+              <th className="px-3 py-2 font-medium">Subcategories</th>
             </tr>
           </thead>
           <tbody>
@@ -187,20 +208,20 @@ export default function Categories() {
 
             {!loading &&
               cats.map((c) => (
-                <tr key={c.id} className="border-t align-top">
-                  <td className="px-3 py-3">
-                    <div className="font-medium">{c.name}</div>
+                <tr key={c.id} className="border-t">
+                  <td className="px-3 py-3 align-top">
+                    <div className="font-medium text-neutral-900">{c.name}</div>
                   </td>
-                  <td className="px-3 py-3 text-xs text-neutral-600">
+                  <td className="px-3 py-3 align-top text-xs text-neutral-600">
                     {c.slug}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 align-top">
                     {c.children && c.children.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {c.children.map((s) => (
                           <span
                             key={s.id}
-                            className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                            className="inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-200"
                           >
                             {s.name}
                           </span>

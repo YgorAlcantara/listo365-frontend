@@ -185,7 +185,7 @@ export default function Checkout() {
 
         {/* Form */}
         <section className="rounded-2xl border bg-white p-4">
-          <h2 className="mb-3 text-lg font-semibold">Contact & delivery</h2>
+          <h2 className="mb-3 text-lg font-semibold">Contact Info</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Contact */}

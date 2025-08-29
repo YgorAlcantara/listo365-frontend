@@ -1,7 +1,13 @@
+// src/pages/admin/Login.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/services/api";
 import { setToken } from "@/services/auth";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+
+// Opcional: usa o mesmo logo do Header
+import logo from "@/assets/Icon/Listo/LiconW.png";
+const logoSrc = (import.meta as any).env?.VITE_LOGO_URL || logo;
 
 export default function Login() {
   const navigate = useNavigate();
@@ -38,82 +44,107 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto grid min-h-[70vh] max-w-sm place-items-center px-4">
-      <div className="w-full rounded-2xl border bg-white p-6 shadow-sm">
-        {/* Brand */}
-        <div className="mb-4 flex items-center gap-2">
-          <svg
-            className="h-6 w-6 text-emerald-600"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 3.5a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 5.5ZM16.5 18h-9a1 1 0 0 1 0-2h3V11H8a1 1 0 0 1 0-2h4a1 1 0 0 1 1 1v6h3.5a1 1 0 0 1 0 2Z" />
-          </svg>
-          <div className="text-xl font-semibold tracking-tight">
-            <span className="text-emerald-600">Listo</span>365 Admin
-          </div>
+    <div className="min-h-[80vh] w-full bg-neutral-50">
+      {/* Top bar com "Back to store" */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm font-medium text-orange-600 hover:text-orange-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to store
+        </Link>
+      </div>
+
+      {/* Container do card */}
+      <div className="mx-auto grid max-w-sm place-items-center px-4 pb-16">
+        {/* Logo */}
+        <div className="mb-4">
+          <img
+            src={logoSrc}
+            alt="Listo365"
+            className="h-16 w-auto select-none"
+            draggable={false}
+          />
         </div>
 
-        <h1 className="mb-4 text-lg font-semibold">Sign in</h1>
-
-        {err && (
-          <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            {err}
+        <div className="w-full rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="mb-1 text-center text-xl font-semibold tracking-tight text-neutral-900">
+            Sign in
           </div>
-        )}
+          <p className="mb-5 text-center text-xs text-neutral-500">
+            Use your staff credentials to access the dashboard.
+          </p>
 
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Email</label>
-            <input
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              className="w-full rounded-lg border px-3 py-2 text-sm"
-              placeholder="you@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-              aria-invalid={!!err}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Password</label>
-            <div className="flex">
-              <input
-                type={showPass ? "text" : "password"}
-                autoComplete="current-password"
-                className="w-full rounded-l-lg border px-3 py-2 text-sm"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass((v) => !v)}
-                className="rounded-r-lg border border-l-0 px-3 text-sm text-neutral-600 hover:bg-neutral-50"
-                aria-label={showPass ? "Hide password" : "Show password"}
-                disabled={loading}
-              >
-                {showPass ? "Hide" : "Show"}
-              </button>
+          {err && (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {err}
             </div>
-          </div>
+          )}
 
-          <button
-            disabled={loading}
-            className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-800">
+                Email
+              </label>
+              <input
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                className="w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                aria-invalid={!!err}
+              />
+            </div>
 
-        <p className="mt-3 text-center text-xs text-neutral-500">
-          Access restricted to authorized staff.
-        </p>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-800">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPass ? "text" : "password"}
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-neutral-300 px-3 py-2.5 pr-10 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((v) => !v)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+                  aria-label={showPass ? "Hide password" : "Show password"}
+                  disabled={loading}
+                >
+                  {showPass ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <button
+              disabled={loading}
+              className={[
+                "w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition",
+                "bg-orange-600 hover:bg-orange-700 disabled:opacity-60",
+              ].join(" ")}
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-4 text-center text-xs text-neutral-500">
+            Access restricted to authorized staff.
+          </p>
+        </div>
       </div>
     </div>
   );

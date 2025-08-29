@@ -1,7 +1,10 @@
+// src/pages/admin/AdminLayout.tsx
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { clearToken } from "@/services/auth";
 import { api } from "@/services/api";
+import { ArrowLeft } from "lucide-react";
+import logo from "@/assets/Icon/Listo/LiconW.png";
 
 type Me = { id: string; email: string; name: string; role: string };
 
@@ -9,7 +12,6 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
 
-  // Load /auth/me to verify token and show user info
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -27,11 +29,12 @@ export default function AdminLayout() {
   }, [navigate]);
 
   const linkCls = ({ isActive }: { isActive: boolean }) =>
-    `block rounded px-3 py-2 text-sm ${
+    [
+      "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
       isActive
-        ? "bg-emerald-50 text-emerald-800 font-semibold"
-        : "hover:bg-neutral-100"
-    }`;
+        ? "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200"
+        : "text-neutral-700 hover:bg-neutral-100",
+    ].join(" ");
 
   function logout() {
     clearToken();
@@ -39,23 +42,35 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-neutral-50">
       {/* Topbar */}
-      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+          {/* Left: back + brand */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/")}
-              className="rounded border px-2 py-1 text-sm hover:bg-neutral-50"
-              title="Back to site"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 px-2.5 py-1.5 text-sm font-medium text-orange-700 hover:bg-orange-50"
+              title="Back to store"
             >
-              ← Site
+              <ArrowLeft className="h-4 w-4" />
+              Store
             </button>
-            <div className="text-lg font-semibold tracking-tight">
-              <span className="text-emerald-600">Listo</span>365 Admin
+
+            <div className="ml-1 flex items-center gap-2">
+              <img
+                src={logo}
+                alt="Listo365"
+                className="h-6 w-auto select-none"
+                draggable={false}
+              />
+              <div className="text-lg font-semibold tracking-tight text-neutral-900">
+                Admin
+              </div>
             </div>
           </div>
 
+          {/* Top nav (desktop) */}
           <nav className="hidden gap-2 md:flex">
             <NavLink to="/admin" className={linkCls} end>
               Products
@@ -71,6 +86,7 @@ export default function AdminLayout() {
             </NavLink>
           </nav>
 
+          {/* User / actions */}
           <div className="flex items-center gap-3">
             {me && (
               <span className="hidden text-xs text-neutral-600 md:inline">
@@ -79,7 +95,7 @@ export default function AdminLayout() {
             )}
             <button
               onClick={logout}
-              className="rounded bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-800"
+              className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-neutral-100"
               title="Sign out"
             >
               Logout
@@ -88,31 +104,10 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      {/* Shell */}
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:grid-cols-[220px_1fr]">
-        {/* Sidebar */}
-        <aside className="hidden rounded-xl border bg-white p-3 md:block">
-          <nav className="space-y-1">
-            <NavLink to="/admin" className={linkCls} end>
-              Products
-            </NavLink>
-            <NavLink to="/admin/orders" className={linkCls}>
-              Orders
-            </NavLink>
-            <NavLink to="/admin/categories" className={linkCls}>
-              Categories
-            </NavLink>
-            <NavLink to="/admin/promotions" className={linkCls}>
-              Promotions
-            </NavLink>
-          </nav>
-        </aside>
-
-        {/* Main content */}
-        <main>
-          <Outlet />
-        </main>
-      </div>
+      {/* Sem sidebar — só conteúdo */}
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <Outlet />
+      </main>
     </div>
   );
 }

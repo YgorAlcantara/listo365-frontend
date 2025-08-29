@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Product } from "@/types";
 import { money } from "@/utils/money";
+import { prefetchProduct } from "@/services/productCache";
 
 type Props = {
   id: string;
@@ -28,8 +29,11 @@ export function ProductCard(props: Props) {
     imageUrl,
     packageSize,
     pdfUrl,
+    stock, // ✅ agora está desestruturado
     sale,
   } = props;
+
+  const key = slug || id;
 
   const cover =
     (images && images.length > 0 ? images[0] : undefined) ??
@@ -37,7 +41,21 @@ export function ProductCard(props: Props) {
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
   const hasPrice = typeof price === "number" && Number.isFinite(price);
-  const href = `/product/${encodeURIComponent(slug || id)}`;
+  const href = `/product/${encodeURIComponent(key)}`;
+
+  const preview: Partial<Product> = {
+    id,
+    slug,
+    name,
+    description,
+    price,
+    images,
+    imageUrl,
+    packageSize,
+    pdfUrl,
+    stock, // ✅ agora existe no escopo
+    sale: sale ?? undefined,
+  };
 
   return (
     <article
@@ -45,9 +63,11 @@ export function ProductCard(props: Props) {
         "group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white",
         "transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg",
       ].join(" ")}
+      onMouseEnter={() => prefetchProduct(key)}
+      onTouchStart={() => prefetchProduct(key)}
     >
       {/* image */}
-      <Link to={href} className="block">
+      <Link to={href} state={{ preview }} className="block">
         <div
           className="aspect-[4/3] w-full bg-neutral-100"
           style={{
@@ -63,7 +83,7 @@ export function ProductCard(props: Props) {
       <div className="flex flex-col gap-3 p-4">
         <div className="min-h-[2.5rem]">
           <h3 className="line-clamp-2 text-sm font-semibold text-neutral-900">
-            <Link to={href} className="hover:underline">
+            <Link to={href} state={{ preview }} className="hover:underline">
               {name}
             </Link>
           </h3>
@@ -111,10 +131,11 @@ export function ProductCard(props: Props) {
           )}
         </div>
 
-        {/* CTA outlined: texto laranja, fundo branco, borda laranja */}
+        {/* CTA outlined */}
         <div>
           <Link
             to={href}
+            state={{ preview }}
             className={[
               "inline-flex w-full items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold",
               "border-orange-500 text-orange-600 bg-white",
