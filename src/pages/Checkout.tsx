@@ -1,4 +1,3 @@
-// src/pages/Checkout.tsx
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus, Trash2, ArrowLeft } from "lucide-react";
@@ -47,8 +46,6 @@ export default function Checkout() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Mantive o comportamento neutro (não alterei seu fluxo/integração).
-    // Se quiser que eu reative o POST /orders com os campos obrigatórios, eu ajusto depois.
     alert("Thanks! We’ll contact you shortly.");
   }
 
@@ -64,8 +61,9 @@ export default function Checkout() {
         </Link>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-[1.1fr,0.9fr]">
-        {/* Review (espelhado com a sacola) */}
+      {/* Empilha em telas menores; lado a lado só em lg+ para evitar quebra */}
+      <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
+        {/* Review */}
         <section className="rounded-2xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Your items</h2>
 
@@ -84,14 +82,21 @@ export default function Checkout() {
             <>
               <ul className="space-y-3">
                 {items.map((it) => {
+                  const qty = Number.isFinite(it.quantity)
+                    ? it.quantity ?? 0
+                    : 0;
                   const lineTotal =
                     typeof it.price === "number"
-                      ? money.format(it.price * (it.quantity ?? 0))
+                      ? money.format(it.price * qty)
                       : "—";
+
                   return (
                     <li
                       key={it.id}
-                      className="flex items-center gap-3 rounded-xl border p-2"
+                      /* Grid responsivo: 
+                         - xs: [thumb | conteúdo] e total quebra abaixo à direita
+                         - sm+: [thumb | conteúdo | total] */
+                      className="grid gap-3 rounded-xl border p-2 sm:grid-cols-[64px,1fr,auto]"
                     >
                       {/* Thumb */}
                       <div className="h-16 w-16 overflow-hidden rounded-lg bg-neutral-100">
@@ -106,8 +111,8 @@ export default function Checkout() {
                         ) : null}
                       </div>
 
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
+                      {/* Conteúdo + Controles */}
+                      <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-neutral-900">
                           {it.name}
                         </div>
@@ -123,41 +128,42 @@ export default function Checkout() {
                             <span className="text-orange-600">Quote</span>
                           )}
                         </div>
-                      </div>
 
-                      {/* Qty (espelhado com a sacola) */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
-                          onClick={() => decrement(it.id)}
-                          aria-label="Decrease"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <div className="w-8 text-center text-sm font-medium">
-                          {it.quantity}
+                        {/* Controles (ficam abaixo no mobile, em linha no sm+) */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
+                              onClick={() => decrement(it.id)}
+                              aria-label="Decrease"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <div className="w-8 text-center text-sm font-medium">
+                              {qty}
+                            </div>
+                            <button
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
+                              onClick={() => increment(it.id)}
+                              aria-label="Increase"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          <button
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-red-50"
+                            onClick={() => remove(it.id)}
+                            aria-label="Remove"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </button>
                         </div>
-                        <button
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
-                          onClick={() => increment(it.id)}
-                          aria-label="Increase"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
                       </div>
 
-                      {/* Remover (lixeira) */}
-                      <button
-                        className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-red-50"
-                        onClick={() => remove(it.id)}
-                        aria-label="Remove"
-                        title="Remove"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </button>
-
-                      {/* Line total */}
-                      <div className="w-20 text-right text-sm font-semibold text-neutral-900">
+                      {/* Line total (vai para a direita; em xs quebra abaixo à direita) */}
+                      <div className="justify-self-end text-right text-sm font-semibold text-neutral-900 sm:self-center">
                         {lineTotal}
                       </div>
                     </li>
@@ -165,7 +171,7 @@ export default function Checkout() {
                 })}
               </ul>
 
-              {/* Subtotal (mesma regra da sacola) */}
+              {/* Subtotal */}
               <div className="mt-4 border-t pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-neutral-600">Subtotal</span>

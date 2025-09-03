@@ -1,6 +1,5 @@
 // src/components/Footer.tsx
 import React from "react";
-// ajuste o caminho do logo para o seu projeto
 import logo from "@/assets/Icon/NBS/NbslistoIcon.png";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -14,7 +13,8 @@ import type { IconProp } from "@fortawesome/fontawesome-svg-core";
 const Footer: React.FC = () => {
   return (
     <footer className="border-t bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-6 md:py-8">
+      {/* ⬅️ Usa o MESMO container do resto do site */}
+      <div className="mx-auto max-w-7xl px-4 py-6 md:py-8">
         <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
           {/* contato */}
           <div className="text-center md:text-left">
@@ -57,7 +57,8 @@ const Footer: React.FC = () => {
 
           {/* logo */}
           <div className="shrink-0">
-            <img src={logo} alt="Logo" className="h-32 md:h-32 w-auto" />
+            {/* ajuste o tamanho se quiser menor/maior, não afeta o alinhamento */}
+            <img src={logo} alt="Logo" className="h-28 w-auto md:h-32" />
           </div>
         </div>
 

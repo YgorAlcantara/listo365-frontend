@@ -24,13 +24,13 @@ type Form = {
   price: string;
   stock: string;
   active: boolean;
-  sortOrder: number; // não renderizamos; ordena só pelas setas
+  sortOrder: number;
   packageSize?: string;
   pdfUrl?: string;
   imageUrl?: string;
   categoryParentId?: string;
   categoryId?: string;
-  imagesText: string;
+  imagesText: string; // (não usamos mais no formulário – mantido pra compat)
   visibility: ProductVisibility;
 };
 
@@ -39,16 +39,18 @@ type VariantForm = {
   name: string;
   price: string;
   stock: string;
+  // sortOrder removido da UI; manteremos internamente só pra preservar quando já existir:
+  sortOrder?: number;
   active: boolean;
   sku?: string;
+
+  // 🔥 NOVO — imagens por variante:
+  imageUrl?: string;
+  imagesText?: string; // textarea (uma URL por linha) -> vira array no save()
 };
 
 type ActiveFilter = "all" | "active" | "archived";
-type StockFilter = "all" | "zero";
-
-type Cat = { id: string; name: string; slug: string; children?: Cat[] };
-
-const CACHE_KEY = "admin.products.v1";
+type StockFilter = "all" | "zero" | "gt0";
 
 export default function Dashboard() {
   const empty: Form = {
@@ -79,57 +81,21 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // filtros & busca
+  // Filtros nos cabeçalhos
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
-  const [cats, setCats] = useState<Cat[]>([]);
-  const [parentFilter, setParentFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
 
-  function readCache(): Product[] | null {
+  async function refresh() {
     try {
-      const raw = sessionStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return null;
-      return parsed as Product[];
-    } catch {
-      return null;
-    }
-  }
-  function writeCache(items: Product[]) {
-    try {
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(items));
-    } catch {}
-  }
-
-  async function refreshLight() {
-    try {
-      const p = await api.get<Product[]>("/products?sort=sortOrder&all=1");
-      const data = (p.data || []).sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-      );
-      setList(data);
-      writeCache(data);
+      const p = await api.get("/products?sort=sortOrder&all=1");
+      setList(p.data);
     } catch (e: any) {
       console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to load products");
     }
   }
-
-  // SWR: mostra cache instantâneo e revalida em bg
   useEffect(() => {
-    const cached = readCache();
-    if (cached) {
-      setList(cached);
-      // revalida em background
-      refreshLight();
-    } else {
-      refreshLight();
-    }
-    api
-      .get<Cat[]>("/categories")
-      .then((r) => setCats(r.data || []))
-      .catch(() => setCats([]));
+    refresh();
   }, []);
 
   function startEdit(p: Product) {
@@ -148,7 +114,7 @@ export default function Dashboard() {
       imageUrl: p.imageUrl || "",
       categoryParentId: parentId,
       categoryId: catId,
-      imagesText: (p.images || []).join("\n"),
+      imagesText: "", // deixado vazio; agora imagens são por variante
       visibility: {
         price: p.visibility?.price ?? false,
         packageSize: p.visibility?.packageSize ?? true,
@@ -157,15 +123,20 @@ export default function Dashboard() {
         description: p.visibility?.description ?? true,
       },
     });
+
+    // Mapeia variantes do produto -> VariantForm (com imagens)
     setVariants(
       Array.isArray((p as any).variants)
-        ? (p as any).variants.map((v: any) => ({
+        ? (p as any).variants.map((v: any, idx: number) => ({
             id: v.id,
             name: v.name ?? "",
             price: String(v.price ?? "0"),
             stock: String(v.stock ?? "0"),
+            sortOrder: Number(v.sortOrder ?? (idx + 1) * 10),
             active: !!v.active,
             sku: v.sku || "",
+            imageUrl: v.imageUrl || "",
+            imagesText: Array.isArray(v.images) ? v.images.join("\n") : "",
           }))
         : []
     );
@@ -178,16 +149,31 @@ export default function Dashboard() {
   }
 
   function addVariant() {
-    setVariants((v) => [
-      ...v,
-      { name: "", price: "0", stock: "0", active: true },
+    setVariants((arr) => [
+      ...arr,
+      {
+        name: "",
+        price: "0",
+        stock: "0",
+        sortOrder: (arr.length + 1) * 10,
+        active: true,
+        sku: "",
+        imageUrl: "",
+        imagesText: "",
+      },
     ]);
   }
   function rmVariant(idx: number) {
     setVariants((v) => v.filter((_, i) => i !== idx));
   }
 
-  // -------- SALVAR (100% otimista, sem esperar request) --------
+  function splitLines(s?: string) {
+    return (s || "")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+
   async function save() {
     const priceNum = parseFloat(String(form.price).replace(",", "."));
     if (!Number.isFinite(priceNum) || priceNum < 0) {
@@ -199,13 +185,10 @@ export default function Dashboard() {
       toast.error("Stock must be 0 or more.");
       return;
     }
-    const imgs = form.imagesText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
 
+    // -> variantes com imagens
     const variantsPayload = variants
-      .map((v, i) => {
+      .map((v, idx) => {
         const n = Number(String(v.price).replace(",", "."));
         const safePrice = Number.isFinite(n) ? n : 0;
         return {
@@ -213,192 +196,151 @@ export default function Dashboard() {
           name: v.name.trim(),
           price: safePrice,
           stock: parseInt(String(v.stock || "0"), 10) || 0,
-          sortOrder: (i + 1) * 10, // auto
+          // manter sort antigo se existir; senão, (idx+1)*10
+          sortOrder:
+            typeof v.sortOrder === "number" ? v.sortOrder : (idx + 1) * 10,
           active: !!v.active,
           sku: v.sku?.trim() || undefined,
+          imageUrl: v.imageUrl?.trim() || undefined,
+          images: splitLines(v.imagesText),
         };
       })
       .filter((v) => !!v.name);
 
-    const payload: any = {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      price: priceNum,
-      stock: stockNum,
-      active: !!form.active,
-      packageSize: form.packageSize?.trim() || undefined,
-      pdfUrl: form.pdfUrl?.trim() || undefined,
-      imageUrl: form.imageUrl?.trim() || undefined,
-      categoryId: form.categoryId || undefined,
-      images: imgs,
-      visibility: {
-        price: !!form.visibility.price,
-        packageSize: !!form.visibility.packageSize,
-        pdf: !!form.visibility.pdf,
-        images: !!form.visibility.images,
-        description: !!form.visibility.description,
-      },
-      variants: variantsPayload,
-    };
-
     setLoading(true);
+    try {
+      const payload: any = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: priceNum,
+        stock: stockNum,
+        active: !!form.active,
+        sortOrder: form.sortOrder,
+        packageSize: form.packageSize?.trim() || undefined,
+        pdfUrl: form.pdfUrl?.trim() || undefined,
+        imageUrl: form.imageUrl?.trim() || undefined,
+        categoryId: form.categoryId || undefined,
+        // 🔄 não enviamos mais imagens globais; mantemos compat se necessário:
+        images: [],
+        visibility: {
+          price: !!form.visibility.price,
+          packageSize: !!form.visibility.packageSize,
+          pdf: !!form.visibility.pdf,
+          images: !!form.visibility.images,
+          description: !!form.visibility.description,
+        },
+        variants: variantsPayload,
+      };
 
-    if (editing) {
-      const before = list;
-      const existing = list.find((x) => x.id === editing)!;
-      const optimistic = {
-        ...existing,
-        ...payload,
-        id: existing.id,
-        slug: existing.slug,
-        category: existing.category,
-        sale: existing.sale,
-        sortOrder: existing.sortOrder,
-      } as Product;
+      if (editing) {
+        await api.put(`/products/${editing}`, payload);
+        toast.success("Product updated");
+      } else {
+        await api.post("/products", payload);
+        toast.success("Product created");
+      }
 
-      // aplica instantâneo
-      setList((prev) => prev.map((x) => (x.id === editing ? optimistic : x)));
-      writeCache(list.map((x) => (x.id === editing ? optimistic : x)));
-      // fecha o form na hora
       cancelEdit();
-
-      // dispara request em background; consolida/rollback
-      api
-        .put<Product>(`/products/${editing}`, payload)
-        .then((r) =>
-          setList((prev) => prev.map((x) => (x.id === editing ? r.data : x)))
-        )
-        .catch((e: any) => {
-          setList(before);
-          writeCache(before);
-          toast.error(e?.response?.data?.error || "Failed to save product");
-        })
-        .finally(() => setLoading(false));
-      toast.success("Product updated");
-    } else {
-      const tempId = `tmp-${Date.now()}`;
-      const optimistic = {
-        id: tempId,
-        name: payload.name,
-        description: payload.description,
-        price: payload.price,
-        stock: payload.stock,
-        active: payload.active,
-        sortOrder: (list.at(-1)?.sortOrder ?? 0) + 10,
-        packageSize: payload.packageSize,
-        pdfUrl: payload.pdfUrl,
-        imageUrl: payload.imageUrl,
-        images: payload.images,
-        category: undefined,
-        sale: undefined,
-        slug: "",
-        visibility: payload.visibility,
-        variants: payload.variants,
-      } as unknown as Product;
-
-      const after = [...list, optimistic].sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-      );
-      setList(after);
-      writeCache(after);
-      cancelEdit();
-
-      api
-        .post<Product>("/products", payload)
-        .then((r) =>
-          setList((prev) => prev.map((x) => (x.id === tempId ? r.data : x)))
-        )
-        .catch((e: any) => {
-          const revert = list;
-          setList(revert);
-          writeCache(revert);
-          toast.error(e?.response?.data?.error || "Failed to create product");
-        })
-        .finally(() => setLoading(false));
-
-      toast.success("Product created");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.error || "Failed to save product");
+    } finally {
+      setLoading(false);
     }
   }
 
-  // -------- ações (100% otimistas, sem refresh) --------
-  function moveSort(p: Product, delta: number) {
-    const before = list;
-    const after = [...list]
-      .map((x) =>
-        x.id === p.id ? { ...x, sortOrder: (x.sortOrder ?? 0) + delta } : x
-      )
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
-    setList(after);
-    writeCache(after);
-    api
-      .patch(`/products/${p.id}/sort-order`, {
+  async function moveSort(p: Product, delta: number) {
+    try {
+      // otimista
+      setList((prev) =>
+        prev.map((x) =>
+          x.id === p.id ? { ...x, sortOrder: (x.sortOrder ?? 0) + delta } : x
+        )
+      );
+      await api.patch(`/products/${p.id}/sort-order`, {
         sortOrder: (p.sortOrder ?? 0) + delta,
-      })
-      .catch(() => {
-        setList(before);
-        writeCache(before);
-        toast.error("Failed to reorder");
       });
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to reorder");
+      await refresh();
+    }
   }
 
-  function archiveProduct(p: Product) {
-    const before = list;
-    const after = list.map((x) =>
-      x.id === p.id ? { ...x, active: false } : x
-    );
-    setList(after);
-    writeCache(after);
-    api.patch(`/products/${p.id}/archive`).catch(() => {
-      setList(before);
-      writeCache(before);
+  // Arquivar / Desarquivar — otimista + refresh
+  async function archiveProduct(p: Product) {
+    try {
+      setList((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, active: false } : x))
+      );
+      await api.patch(`/products/${p.id}/archive`);
+      toast.success("Archived");
+      await refresh();
+    } catch (e) {
+      console.error(e);
       toast.error("Failed to archive");
-    });
+      await refresh();
+    }
   }
-  function unarchiveProduct(p: Product) {
-    const before = list;
-    const after = list.map((x) => (x.id === p.id ? { ...x, active: true } : x));
-    setList(after);
-    writeCache(after);
-    api.patch(`/products/${p.id}/unarchive`).catch(() => {
-      setList(before);
-      writeCache(before);
+  async function unarchiveProduct(p: Product) {
+    try {
+      setList((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, active: true } : x))
+      );
+      await api.patch(`/products/${p.id}/unarchive`);
+      toast.success("Unarchived");
+      await refresh();
+    } catch (e) {
+      console.error(e);
       toast.error("Failed to unarchive");
-    });
+      await refresh();
+    }
   }
-  function deleteProduct(p: Product) {
+  async function deleteProduct(p: Product) {
     if (
       !confirm(
         `Delete "${p.name}"?\n\nIf this product has related orders, it will be archived instead of deleted.`
       )
     )
       return;
-    const before = list;
-    const after = list.filter((x) => x.id !== p.id);
-    setList(after);
-    writeCache(after);
-    api.delete(`/products/${p.id}`).catch(() => {
-      setList(before);
-      writeCache(before);
+    try {
+      const r = await api.delete(`/products/${p.id}`);
+      if (r.data?.archived) {
+        toast.success("Product archived (in use by orders).");
+        setList((prev) =>
+          prev.map((x) => (x.id === p.id ? { ...x, active: false } : x))
+        );
+      } else {
+        toast.success("Product deleted.");
+        setList((prev) => prev.filter((x) => x.id !== p.id));
+      }
+      await refresh();
+    } catch (e) {
+      console.error(e);
       toast.error("Failed to delete");
-    });
+    }
   }
-  function deleteProductHard(p: Product) {
+  async function deleteProductHard(p: Product) {
     if (
       !confirm(
         `PERMANENTLY delete "${p.name}"?\n\nThis cannot be undone. Only works if the product has no related orders.`
       )
     )
       return;
-    const before = list;
-    const after = list.filter((x) => x.id !== p.id);
-    setList(after);
-    writeCache(after);
-    api.delete(`/products/${p.id}/hard`).catch(() => {
-      setList(before);
-      writeCache(before);
-      toast.error("Failed to hard-delete");
-    });
+    try {
+      await api.delete(`/products/${p.id}/hard`);
+      toast.success("Product permanently deleted.");
+      setList((prev) => prev.filter((x) => x.id !== p.id));
+      await refresh();
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        "Failed to hard-delete";
+      toast.error(msg);
+    }
   }
 
   function toggleActiveHeader() {
@@ -407,42 +349,33 @@ export default function Dashboard() {
     );
   }
   function toggleStockHeader() {
-    setStockFilter((f) => (f === "all" ? "zero" : "all")); // só All / 0
+    setStockFilter((f) =>
+      f === "all" ? "zero" : f === "zero" ? "gt0" : "all"
+    );
   }
   function toggleActiveRow(p: Product) {
     if (p.active) return archiveProduct(p);
     return unarchiveProduct(p);
   }
 
-  const parentOptions = useMemo(
-    () =>
-      cats
-        .map((c) => ({ id: c.id, label: c.name }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    [cats]
-  );
-
+  // Filtro combinado
   const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
     return list.filter((p) => {
-      const passSearch = term
-        ? (p.name || "").toLowerCase().includes(term)
-        : true;
       const passActive =
         activeFilter === "all"
           ? true
           : activeFilter === "active"
           ? p.active
           : !p.active;
-      const passStock = stockFilter === "all" ? true : (p.stock ?? 0) === 0;
-      const passParent =
-        parentFilter === "all"
+      const passStock =
+        stockFilter === "all"
           ? true
-          : p.category?.parent?.id === parentFilter ||
-            p.category?.id === parentFilter;
-      return passSearch && passActive && passStock && passParent;
+          : stockFilter === "zero"
+          ? (p.stock ?? 0) === 0
+          : (p.stock ?? 0) > 0;
+      return passActive && passStock;
     });
-  }, [list, search, activeFilter, stockFilter, parentFilter]);
+  }, [list, activeFilter, stockFilter]);
 
   const smallBtn =
     "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-neutral-50";
@@ -452,7 +385,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
-        <h1 className="text-2xl font-bold"></h1>
+        <h1 className="text-2xl font-bold">Admin — Products</h1>
       </div>
 
       {/* Form */}
@@ -585,28 +518,6 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">
-                Images (one URL per line)
-              </label>
-              <textarea
-                rows={4}
-                className="w-full rounded border px-3 py-2 text-sm font-mono"
-                placeholder={`/catalog/slug/1.jpg
-/catalog/slug/2.jpg
-/catalog/slug/3.jpg
-/catalog/slug/4.jpg`}
-                value={form.imagesText}
-                onChange={(e) =>
-                  setForm((v) => ({ ...v, imagesText: e.target.value }))
-                }
-                disabled={loading}
-              />
-              <p className="mt-1 text-[11px] text-neutral-500">
-                First image becomes the cover.
-              </p>
-            </div>
-
             {/* Categorias */}
             <div className="md:col-span-2">
               <CategoryPicker
@@ -636,7 +547,181 @@ export default function Dashboard() {
             </label>
           </div>
 
-          {/* Visibilidade */}
+          {/* 🔥 VARIANTES (com imagens) — agora ACIMA de Visibility */}
+          <div className="space-y-3 rounded-2xl border p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Variants</h3>
+              <button
+                type="button"
+                onClick={addVariant}
+                className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
+              >
+                <FontAwesomeIcon icon={faPlus} /> Add variant
+              </button>
+            </div>
+
+            {variants.length === 0 && (
+              <p className="text-sm text-neutral-500">
+                No variants. You can sell a single-price product or add options
+                here.
+              </p>
+            )}
+
+            {variants.map((v, i) => (
+              <div key={i} className="space-y-2 rounded-xl border p-3">
+                <div className="grid gap-2 md:grid-cols-[1.2fr_140px_120px_1fr]">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      Size / Variant name
+                    </label>
+                    <input
+                      className="w-full rounded border px-3 py-2 text-sm"
+                      placeholder="e.g., 1 gal / 32 oz"
+                      value={v.name}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, name: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      Variant price (USD)
+                    </label>
+                    <input
+                      className="w-full rounded border px-3 py-2 text-sm"
+                      placeholder="0.00"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={v.price}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, price: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      Stock
+                    </label>
+                    <input
+                      className="w-full rounded border px-3 py-2 text-sm"
+                      placeholder="0"
+                      type="number"
+                      step="1"
+                      min={0}
+                      value={v.stock}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, stock: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      SKU (optional)
+                    </label>
+                    <input
+                      className="w-full rounded border px-3 py-2 text-sm"
+                      placeholder="SKU-123"
+                      value={v.sku || ""}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, sku: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      Cover image URL
+                    </label>
+                    <input
+                      className="w-full rounded border px-3 py-2 text-sm"
+                      placeholder="/catalog/slug/1.jpg or https://..."
+                      value={v.imageUrl || ""}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, imageUrl: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium">
+                      Gallery URLs (one per line)
+                    </label>
+                    <textarea
+                      rows={3}
+                      className="w-full rounded border px-3 py-2 text-sm font-mono"
+                      placeholder={`/catalog/slug/1.jpg
+/catalog/slug/2.jpg
+/catalog/slug/3.jpg`}
+                      value={v.imagesText || ""}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, imagesText: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                    <p className="mt-1 text-[11px] text-neutral-500">
+                      The first image will be used as the first gallery tile.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={v.active}
+                      onChange={(e) =>
+                        setVariants((a) =>
+                          a.map((x, idx) =>
+                            idx === i ? { ...x, active: e.target.checked } : x
+                          )
+                        )
+                      }
+                    />
+                    Active
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => rmVariant(i)}
+                    className="rounded border px-2 py-1 text-sm text-red-600"
+                    title="Remove variant"
+                  >
+                    <FontAwesomeIcon icon={faTrash} /> Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Visibilidade (agora abaixo das variantes) */}
           <div className="space-y-2 rounded-2xl border p-3">
             <div className="mb-1 text-sm font-semibold">Visibility</div>
             <div className="flex flex-wrap gap-2">
@@ -670,110 +755,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Variantes com títulos (sem sort manual) */}
-          <div className="space-y-3 rounded-2xl border p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Variants</h3>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
-              >
-                <FontAwesomeIcon icon={faPlus} /> Add
-              </button>
-            </div>
-
-            {variants.length === 0 && (
-              <p className="text-sm text-neutral-500">
-                No variants. You can sell a single-price product or add options
-                here.
-              </p>
-            )}
-
-            {variants.length > 0 && (
-              <div className="grid grid-cols-1 gap-2 text-xs text-neutral-500 md:grid-cols-[1fr_140px_120px_110px]">
-                <div>Size / variant</div>
-                <div>Price (0 allowed)</div>
-                <div>Stock</div>
-                <div>Actions</div>
-              </div>
-            )}
-
-            {variants.map((v, i) => (
-              <div
-                key={i}
-                className="grid gap-2 md:grid-cols-[1fr_140px_120px_110px]"
-              >
-                <input
-                  className="rounded border px-3 py-2 text-sm"
-                  placeholder="Size (e.g., 1 gal / 32 oz)"
-                  value={v.name}
-                  onChange={(e) =>
-                    setVariants((a) =>
-                      a.map((x, idx) =>
-                        idx === i ? { ...x, name: e.target.value } : x
-                      )
-                    )
-                  }
-                />
-                <input
-                  className="rounded border px-3 py-2 text-sm"
-                  placeholder="0.00"
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={v.price}
-                  onChange={(e) =>
-                    setVariants((a) =>
-                      a.map((x, idx) =>
-                        idx === i ? { ...x, price: e.target.value } : x
-                      )
-                    )
-                  }
-                />
-                <input
-                  className="rounded border px-3 py-2 text-sm"
-                  placeholder="0"
-                  type="number"
-                  step="1"
-                  min={0}
-                  value={v.stock}
-                  onChange={(e) =>
-                    setVariants((a) =>
-                      a.map((x, idx) =>
-                        idx === i ? { ...x, stock: e.target.value } : x
-                      )
-                    )
-                  }
-                />
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-1 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={v.active}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, active: e.target.checked } : x
-                          )
-                        )
-                      }
-                    />
-                    Active
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => rmVariant(i)}
-                    className="rounded border px-2 py-1 text-sm text-red-600"
-                    title="Remove"
-                  >
-                    <FontAwesomeIcon icon={faTrash} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <div className="flex gap-2 pt-2">
             <button
               type="submit"
@@ -802,29 +783,7 @@ export default function Dashboard() {
         </form>
       </div>
 
-      {/* Toolbar abaixo do form (busca + filtro por categoria pai) */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by product name…"
-          className="w-full max-w-xs rounded border px-3 py-2 text-sm"
-        />
-        <select
-          value={parentFilter}
-          onChange={(e) => setParentFilter(e.target.value)}
-          className="rounded border px-3 py-2 text-sm"
-        >
-          <option value="all">All parent categories</option>
-          {parentOptions.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Tabela */}
+      {/* Table */}
       <div className="overflow-auto rounded-2xl border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
@@ -837,7 +796,7 @@ export default function Dashboard() {
                 <button
                   className="inline-flex items-center gap-2 rounded px-2 py-1 hover:bg-neutral-100"
                   onClick={toggleStockHeader}
-                  title="Click to filter: All → 0 → All"
+                  title="Click to filter: All → 0 → >0"
                 >
                   Stock
                   <span
@@ -845,10 +804,16 @@ export default function Dashboard() {
                       chip,
                       stockFilter === "all"
                         ? "text-neutral-600 ring-neutral-300 bg-neutral-50"
-                        : "text-rose-800 ring-rose-200 bg-rose-50",
+                        : stockFilter === "zero"
+                        ? "text-rose-800 ring-rose-200 bg-rose-50"
+                        : "text-emerald-800 ring-emerald-200 bg-emerald-50",
                     ].join(" ")}
                   >
-                    {stockFilter === "all" ? "All" : "0"}
+                    {stockFilter === "all"
+                      ? "All"
+                      : stockFilter === "zero"
+                      ? "0"
+                      : "> 0"}
                   </span>
                 </button>
               </th>
@@ -883,7 +848,9 @@ export default function Dashboard() {
           <tbody>
             {visible.map((p) => (
               <>
+                {/* Linha principal */}
                 <tr key={p.id} className="border-t align-top">
+                  {/* order */}
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <button
@@ -903,6 +870,7 @@ export default function Dashboard() {
                     </div>
                   </td>
 
+                  {/* product */}
                   <td className="px-3 py-2">
                     <div className="font-medium">{p.name}</div>
                     <div className="line-clamp-2 text-xs text-neutral-500">
@@ -917,6 +885,7 @@ export default function Dashboard() {
                       )}
                   </td>
 
+                  {/* category */}
                   <td className="px-3 py-2">
                     {p.category ? (
                       <span className="text-xs">
@@ -930,6 +899,7 @@ export default function Dashboard() {
                     )}
                   </td>
 
+                  {/* price */}
                   <td className="px-3 py-2">
                     {p.visibility?.price === false ||
                     typeof p.price !== "number"
@@ -937,8 +907,10 @@ export default function Dashboard() {
                       : `$${Number(p.price).toFixed(2)}`}
                   </td>
 
+                  {/* stock */}
                   <td className="px-3 py-2">{p.stock}</td>
 
+                  {/* active (clicável) */}
                   <td className="px-3 py-2">
                     <button
                       className="inline-flex items-center gap-2 rounded px-2 py-1 hover:bg-neutral-50"
@@ -960,7 +932,7 @@ export default function Dashboard() {
                   </td>
                 </tr>
 
-                {/* ações horizontais */}
+                {/* Linha de ações */}
                 <tr className="bg-neutral-50/60">
                   <td className="p-0" />
                   <td className="px-3 py-2" colSpan={4}>

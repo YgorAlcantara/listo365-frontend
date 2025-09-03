@@ -1,261 +1,283 @@
+// src/pages/Home.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/services/api";
 import type { Product } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
+import { Search } from "lucide-react";
 import { Hero } from "@/components/Hero";
-import { PromoBar } from "@/components/PromoBar";
-import { SkeletonCard } from "@/components/Skeleton";
-import GetInTouch from "@/components/GetInTouch";
-import Footer from "@/components/Footer";
 
-type Cat = { id: string; name: string; slug: string; children?: Cat[] };
-
-const P_CACHE = "home.products.v1";
-const C_CACHE = "home.categories.v1";
+const EXCLUDED = new Set(["bathroom cleaners", "glass cleaners"]); // excluir (case-insensitive)
 
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [cats, setCats] = useState<Cat[]>([]);
-  const [parentId, setParentId] = useState<string>("all");
+  const [all, setAll] = useState<Product[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  function read<T>(key: string): T | null {
-    try {
-      const raw = sessionStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : null;
-    } catch {
-      return null;
-    }
-  }
-  function write<T>(key: string, val: T) {
-    try {
-      sessionStorage.setItem(key, JSON.stringify(val));
-    } catch {}
-  }
+  const [q, setQ] = useState("");
+  const [parentFilter, setParentFilter] = useState<string>("ALL");
 
   useEffect(() => {
-    // mostra cache na hora (se houver)
-    const pc = read<Product[]>(P_CACHE);
-    const cc = read<Cat[]>(C_CACHE);
-    if (pc) {
-      setProducts(pc);
-      setLoading(false);
-    }
-    if (cc) setCats(cc);
-
-    // revalida em background
-    Promise.all([
-      api.get<Product[]>("/products"),
-      api.get<Cat[]>("/categories"),
-    ])
-      .then(([p, c]) => {
-        setProducts(p.data || []);
-        write(P_CACHE, p.data || []);
-        setCats(c.data || []);
-        write(C_CACHE, c.data || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const r = await api.get<Product[]>("/products?sort=sortOrder");
+        if (!alive) return;
+        setAll(Array.isArray(r.data) ? r.data : []);
+      } catch (e: any) {
+        if (!alive) return;
+        setError(e?.response?.data?.error || "Failed to load products");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const parents = useMemo(
+  const norm = (s?: string | null) => (s || "").trim().toLowerCase();
+
+  // filtra inativos e categorias excluídas
+  const allowed = useMemo(() => {
+    return (all || []).filter((p) => {
+      if (p.active === false) return false;
+      const cat = p.category;
+      const catName = norm(cat?.name);
+      const parentName = norm(cat?.parent?.name);
+      if (EXCLUDED.has(catName) || EXCLUDED.has(parentName)) return false;
+      return true;
+    });
+  }, [all]);
+
+  const parentNames = useMemo(() => {
+    const set = new Set<string>();
+    allowed.forEach((p) => {
+      const top = p.category?.parent?.name || p.category?.name || "Other";
+      set.add(top);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allowed]);
+
+  const matchesQuery = (p: Product) => {
+    if (!q.trim()) return true;
+    const n = norm(p.name);
+    const d = norm(p.description);
+    const term = norm(q);
+    return n.includes(term) || d.includes(term);
+  };
+
+  const topName = (p: Product) =>
+    p.category?.parent?.name || p.category?.name || "Other";
+
+  const visible = useMemo(
     () =>
-      cats.map((c) => ({ id: c.id, name: c.name, children: c.children || [] })),
-    [cats]
+      allowed.filter((p) => {
+        if (!matchesQuery(p)) return false;
+        if (parentFilter === "ALL") return true;
+        return topName(p) === parentFilter;
+      }),
+    [allowed, q, parentFilter]
   );
 
-  const textFiltered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return products;
-    return products.filter(
-      (p) =>
-        (p.name || "").toLowerCase().includes(term) ||
-        (p.description || "").toLowerCase().includes(term)
-    );
-  }, [q, products]);
-
-  const gridAll = useMemo(() => {
-    if (parentId !== "all") return [];
-    return textFiltered;
-  }, [textFiltered, parentId]);
-
-  const segments = useMemo(() => {
-    if (parentId === "all") return [];
-    const parent = parents.find((p) => p.id === parentId);
-    if (!parent) return [];
-
-    const children = parent.children;
-    const byChild: { title: string; items: Product[] }[] = [];
-
-    for (const s of children) {
-      const items = textFiltered.filter((p) => p.category?.id === s.id);
-      if (items.length) byChild.push({ title: s.name, items });
+  const groupedBySub = useMemo(() => {
+    if (parentFilter === "ALL") return null;
+    const map = new Map<string, Product[]>();
+    for (const p of visible) {
+      const sub = p.category?.name || "General";
+      if (!map.has(sub)) map.set(sub, []);
+      map.get(sub)!.push(p);
     }
-
-    const direct = textFiltered
-      .filter(
-        (p) =>
-          p.category?.id === parentId || p.category?.parent?.id === parentId
-      )
-      .filter((p) => !children.some((s) => s.id === p.category?.id));
-    if (direct.length) byChild.unshift({ title: "Other", items: direct });
-
-    return byChild;
-  }, [parentId, parents, textFiltered]);
+    for (const [k, arr] of map.entries()) {
+      arr.sort((a, b) => {
+        const s = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        return s !== 0 ? s : a.name.localeCompare(b.name);
+      });
+      map.set(k, arr);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [visible, parentFilter]);
 
   return (
-    <div className="space-y-8">
-      <PromoBar />
+    <div className="space-y-6">
+      {/* HERO */}
       <Hero />
 
-      {/* header + busca */}
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold text-neutral-900">Products</h2>
-          <input
-            placeholder="Search by name or description"
-            className="w-full max-w-md rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-
-        {/* filtro por parent (chips) */}
-        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          <button
-            onClick={() => setParentId("all")}
-            className={[
-              "whitespace-nowrap rounded-full border px-3 py-1.5 text-sm",
-              parentId === "all"
-                ? "border-orange-500 bg-orange-50 text-orange-700"
-                : "border-neutral-300 hover:bg-neutral-50",
-            ].join(" ")}
-          >
-            All
-          </button>
-          {parents.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setParentId(p.id)}
-              className={[
-                "whitespace-nowrap rounded-full border px-3 py-1.5 text-sm",
-                parentId === p.id
-                  ? "border-orange-500 bg-orange-50 text-orange-700"
-                  : "border-neutral-300 hover:bg-neutral-50",
-              ].join(" ")}
-              title={p.name}
+      {/* Catálogo */}
+      <section id="catalog" className="scroll-mt-24 space-y-6">
+        {/* Busca + chips */}
+        <div className="rounded-2xl border bg-white p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            {/* Busca */}
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="relative w-full md:w-80"
+              aria-label="Search products"
             >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      </div>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by name…"
+                className="w-full rounded-lg border px-9 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/60"
+              />
+            </form>
 
-      {/* listagem */}
-      <section id="catalog" className="space-y-8">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : parentId === "all" ? (
-          gridAll.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600">
-              No products found{q ? ` for “${q}”` : ""}.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {gridAll.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  id={p.id}
-                  slug={p.slug}
-                  name={p.name}
-                  description={p.description}
-                  price={p.price}
-                  images={p.images}
-                  imageUrl={p.imageUrl}
-                  packageSize={p.packageSize}
-                  pdfUrl={p.pdfUrl}
-                  stock={p.stock}
-                  sale={p.sale}
-                />
+            {/* Chips de categoria-PAI */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className={[
+                  "rounded-full border px-3 py-1 text-sm",
+                  parentFilter === "ALL"
+                    ? "border-orange-600 bg-orange-50 text-orange-700"
+                    : "hover:bg-neutral-50",
+                ].join(" ")}
+                onClick={() => setParentFilter("ALL")}
+              >
+                All
+              </button>
+              {parentNames.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => setParentFilter(name)}
+                  className={[
+                    "rounded-full border px-3 py-1 text-sm",
+                    parentFilter === name
+                      ? "border-orange-600 bg-orange-50 text-orange-700"
+                      : "hover:bg-neutral-50",
+                  ].join(" ")}
+                  title={name}
+                >
+                  {name}
+                </button>
               ))}
             </div>
-          )
-        ) : (
-          // parent selecionado — ver regra de layout
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {segments.length === 0 ? (
-              <div className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600 md:col-span-2">
-                No products in this category{q ? ` for “${q}”` : ""}.
+          </div>
+        </div>
+
+        {/* Estados */}
+        {loading && (
+          <div className="rounded-2xl border bg-white p-6 text-sm text-neutral-600">
+            Loading products…
+          </div>
+        )}
+        {error && !loading && (
+          <div className="rounded-2xl border bg-white p-6 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+
+        {/* Lista */}
+        {!loading && !error && (
+          <>
+            {parentFilter === "ALL" ? (
+              visible.length === 0 ? (
+                <div className="rounded-2xl border bg-white p-6 text-sm text-neutral-600">
+                  No products found.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {visible
+                    .sort((a, b) => {
+                      const s = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+                      return s !== 0 ? s : a.name.localeCompare(b.name);
+                    })
+                    .map((p) => {
+                      const firstActiveVariant = Array.isArray(p.variants)
+                        ? p.variants.find((v) => v.active !== false)
+                        : undefined;
+                      return (
+                        <ProductCard
+                          key={p.id}
+                          id={p.id}
+                          slug={p.slug || p.id}
+                          name={p.name}
+                          description={p.description || ""}
+                          price={
+                            typeof p.price === "number"
+                              ? (p.price as number)
+                              : undefined
+                          }
+                          images={p.images || []}
+                          imageUrl={p.imageUrl || undefined}
+                          packageSize={p.packageSize || undefined}
+                          pdfUrl={p.pdfUrl || undefined}
+                          stock={p.stock ?? 0}
+                          sale={p.sale}
+                          sku={firstActiveVariant?.sku || null}
+                          category={
+                            p.category
+                              ? {
+                                  name: p.category.name,
+                                  parent: p.category.parent
+                                    ? { name: p.category.parent.name }
+                                    : null,
+                                }
+                              : null
+                          }
+                        />
+                      );
+                    })}
+                </div>
+              )
+            ) : groupedBySub && groupedBySub.length > 0 ? (
+              <div className="space-y-6">
+                {groupedBySub.map(([subName, items]) => (
+                  <section key={subName} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-semibold text-neutral-900">
+                        {subName}
+                      </h2>
+                      <div className="ml-4 h-[1px] flex-1 bg-neutral-200" />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {items.map((p) => {
+                        const firstActiveVariant = Array.isArray(p.variants)
+                          ? p.variants.find((v) => v.active !== false)
+                          : undefined;
+                        return (
+                          <ProductCard
+                            key={p.id}
+                            id={p.id}
+                            slug={p.slug || p.id}
+                            name={p.name}
+                            description={p.description || ""}
+                            price={
+                              typeof p.price === "number"
+                                ? (p.price as number)
+                                : undefined
+                            }
+                            images={p.images || []}
+                            imageUrl={p.imageUrl || undefined}
+                            packageSize={p.packageSize || undefined}
+                            pdfUrl={p.pdfUrl || undefined}
+                            stock={p.stock ?? 0}
+                            sale={p.sale}
+                            sku={firstActiveVariant?.sku || null}
+                            category={
+                              p.category
+                                ? {
+                                    name: p.category.name,
+                                    parent: p.category.parent
+                                      ? { name: p.category.parent.name }
+                                      : null,
+                                  }
+                                : null
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
-              segments.map((seg, idx) => {
-                const single = seg.items.length === 1;
-                return (
-                  <div
-                    key={idx}
-                    className={[
-                      "rounded-2xl border bg-white p-4",
-                      single ? "" : "md:col-span-2",
-                    ].join(" ")}
-                  >
-                    <div className="mb-3 flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-neutral-900">
-                        {seg.title}
-                      </h3>
-                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                        {seg.items.length}
-                      </span>
-                    </div>
-
-                    {single ? (
-                      <div className="grid grid-cols-1">
-                        {seg.items.map((p) => (
-                          <ProductCard
-                            key={p.id}
-                            id={p.id}
-                            slug={p.slug}
-                            name={p.name}
-                            description={p.description}
-                            price={p.price}
-                            images={p.images}
-                            imageUrl={p.imageUrl}
-                            packageSize={p.packageSize}
-                            pdfUrl={p.pdfUrl}
-                            stock={p.stock}
-                            sale={p.sale}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {seg.items.map((p) => (
-                          <ProductCard
-                            key={p.id}
-                            id={p.id}
-                            slug={p.slug}
-                            name={p.name}
-                            description={p.description}
-                            price={p.price}
-                            images={p.images}
-                            imageUrl={p.imageUrl}
-                            packageSize={p.packageSize}
-                            pdfUrl={p.pdfUrl}
-                            stock={p.stock}
-                            sale={p.sale}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+              <div className="rounded-2xl border bg-white p-6 text-sm text-neutral-600">
+                No products found under <b>{parentFilter}</b>.
+              </div>
             )}
-          </div>
+          </>
         )}
       </section>
     </div>
