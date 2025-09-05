@@ -5,7 +5,6 @@ import { money } from "@/utils/money";
 import type { OrderInquiry, OrderItem, OrderStatus, Page } from "@/types";
 import { toast } from "react-hot-toast";
 
-// ----- constants / helpers -----
 const STATUSES: Array<"ALL" | OrderStatus> = [
   "ALL",
   "RECEIVED",
@@ -16,8 +15,7 @@ const STATUSES: Array<"ALL" | OrderStatus> = [
 ];
 
 function statusBadge(s: OrderStatus) {
-  const base =
-    "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium";
+  const base = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium";
   switch (s) {
     case "RECEIVED":
       return `${base} bg-orange-100 text-orange-700`;
@@ -41,20 +39,15 @@ function fmtDate(s?: string) {
   }
 }
 
-// Prisma Decimal pode vir como string; normaliza
 function asNumber(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 function sumItems(items: OrderItem[]) {
-  return items.reduce(
-    (acc, it) => acc + it.quantity * asNumber(it.unitPrice),
-    0
-  );
+  return items.reduce((acc, it) => acc + it.quantity * asNumber(it.unitPrice), 0);
 }
 
 export default function AdminOrders() {
-  // list view
   const [tab, setTab] = useState<"ALL" | OrderStatus>("ALL");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -67,11 +60,9 @@ export default function AdminOrders() {
     rows: [],
   });
 
-  // controle para evitar race-condition (respostas antigas sobrescrevendo novas)
   const reqIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  // detail drawer
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderInquiry | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,13 +75,10 @@ export default function AdminOrders() {
   );
 
   async function fetchList({ keepPage = false }: { keepPage?: boolean } = {}) {
-    // cancela requisição anterior se ainda estiver pendente
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
     const myId = ++reqIdRef.current;
-    if (!keepPage) setPage((p) => p); // no-op, só pra coerência na intenção
 
     setLoading(true);
     try {
@@ -98,13 +86,11 @@ export default function AdminOrders() {
       if (q.trim()) params.q = q.trim();
       if (tab !== "ALL") params.status = tab;
 
-      // axios aceita o sinal via { signal }
       const r = await api.get<Page<OrderInquiry>>("/orders", {
         params,
         signal: controller.signal as any,
       });
 
-      // apenas aplica se ainda é a requisição mais recente
       if (myId === reqIdRef.current) {
         setData(r.data);
       }
@@ -145,11 +131,9 @@ export default function AdminOrders() {
     fetchList();
   }
 
-  // Mudança de status — otimista + sync
   async function changeStatus(next: OrderStatus) {
     if (!detail) return;
 
-    // confirmações especiais
     if (next === "COMPLETED") {
       const ok = confirm(
         "Mark this order as COMPLETED?\nThis will decrement product stock based on item quantities."
@@ -165,32 +149,22 @@ export default function AdminOrders() {
 
     setSaving(true);
 
-    // otimista no drawer e na tabela
     const prev = detail.status;
     setDetail({ ...detail, status: next });
     setData((d) => ({
       ...d,
-      rows: d.rows.map((o) =>
-        o.id === detail.id ? { ...o, status: next } : o
-      ),
+      rows: d.rows.map((o) => (o.id === detail.id ? { ...o, status: next } : o)),
     }));
 
     try {
       await api.patch(`/orders/${detail.id}/status`, { status: next });
       toast.success(`Status changed to ${next.replace("_", " ")}`);
-      // re-sync fino (detalhe + lista) sem piscar
-      await Promise.all([
-        fetchDetail(detail.id),
-        fetchList({ keepPage: true }),
-      ]);
+      await Promise.all([fetchDetail(detail.id), fetchList({ keepPage: true })]);
     } catch (e: any) {
-      // rollback
       setDetail((d) => (d ? { ...d, status: prev } : d));
       setData((d) => ({
         ...d,
-        rows: d.rows.map((o) =>
-          o.id === detail.id ? { ...o, status: prev } : o
-        ),
+        rows: d.rows.map((o) => (o.id === detail.id ? { ...o, status: prev } : o)),
       }));
       console.error(e);
       toast.error(e?.response?.data?.error || "Failed to change status");
@@ -205,10 +179,7 @@ export default function AdminOrders() {
     try {
       await api.patch(`/orders/${detail.id}/note`, { note, adminNote });
       toast.success("Notes saved");
-      await Promise.all([
-        fetchDetail(detail.id),
-        fetchList({ keepPage: true }),
-      ]);
+      await Promise.all([fetchDetail(detail.id), fetchList({ keepPage: true })]);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.response?.data?.error || "Failed to save notes");
@@ -219,14 +190,12 @@ export default function AdminOrders() {
 
   async function downloadCsv() {
     try {
-      const res = await api.get(`/customers/export/csv`, {
-        responseType: "blob",
-      });
+      const res = await api.get(`/orders/export/csv`, { responseType: "blob" });
       const blob = new Blob([res.data], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "contacts-optin.csv";
+      a.download = "orders.csv";
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
@@ -239,7 +208,7 @@ export default function AdminOrders() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold"></h1>
+        <h1 className="text-2xl font-bold">Admin — Orders</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchList({ keepPage: true })}
@@ -253,7 +222,7 @@ export default function AdminOrders() {
             onClick={downloadCsv}
             className="rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800"
           >
-            Export contacts (CSV)
+            Export orders (CSV)
           </button>
         </div>
       </div>
@@ -268,9 +237,7 @@ export default function AdminOrders() {
               setPage(1);
             }}
             className={`rounded-full px-3 py-1 text-sm border ${
-              tab === s
-                ? "bg-black text-white border-black"
-                : "bg-white hover:bg-neutral-50"
+              tab === s ? "bg-black text-white border-black" : "bg-white hover:bg-neutral-50"
             }`}
           >
             {s === "ALL" ? "All" : s.replace("_", " ")}
@@ -310,9 +277,7 @@ export default function AdminOrders() {
           <tbody>
             {data.rows.map((o) => (
               <tr key={o.id} className="border-t align-top">
-                <td className="px-3 py-2 whitespace-nowrap">
-                  {fmtDate(o.createdAt)}
-                </td>
+                <td className="px-3 py-2 whitespace-nowrap">{fmtDate(o.createdAt)}</td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{o.customer?.name || "—"}</div>
                   <div className="mt-0.5 grid gap-0.5 text-xs text-neutral-600">
@@ -320,11 +285,7 @@ export default function AdminOrders() {
                     <span>{o.customer?.phone || "—"}</span>
                     {o.address ? (
                       <span className="text-[11px] text-neutral-500">
-                        {[
-                          o.address.city || "",
-                          o.address.state || "",
-                          o.address.country || "",
-                        ]
+                        {[o.address.city || "", o.address.state || "", o.address.country || ""]
                           .filter(Boolean)
                           .join(", ")}
                       </span>
@@ -336,9 +297,7 @@ export default function AdminOrders() {
                 <td className="px-3 py-2">{o.items.length}</td>
                 <td className="px-3 py-2">{money.format(sumItems(o.items))}</td>
                 <td className="px-3 py-2">
-                  <span className={statusBadge(o.status)}>
-                    {o.status.replace("_", " ")}
-                  </span>
+                  <span className={statusBadge(o.status)}>{o.status.replace("_", " ")}</span>
                 </td>
                 <td className="px-3 py-2">
                   <button
@@ -389,17 +348,12 @@ export default function AdminOrders() {
           <div className="w-full max-w-xl overflow-auto bg-white p-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Order {detail.id}</h3>
-              <button
-                onClick={() => setOpenId(null)}
-                className="rounded border px-2 py-1 text-sm"
-              >
+              <button onClick={() => setOpenId(null)} className="rounded border px-2 py-1 text-sm">
                 Close
               </button>
             </div>
 
-            <div className="mt-2 text-xs text-neutral-500">
-              {fmtDate(detail.createdAt)}
-            </div>
+            <div className="mt-2 text-xs text-neutral-500">{fmtDate(detail.createdAt)}</div>
             <div className="mt-2">
               {detail.status && (
                 <span className={statusBadge(detail.status)}>
@@ -437,9 +391,7 @@ export default function AdminOrders() {
                   {detail.address.line2 && <div>{detail.address.line2}</div>}
                   <div>
                     {detail.address.city}
-                    {detail.address.state
-                      ? `, ${detail.address.state}`
-                      : ""}{" "}
+                    {detail.address.state ? `, ${detail.address.state}` : ""}{" "}
                     {detail.address.postalCode || ""}
                   </div>
                   <div>{detail.address.country}</div>
@@ -454,17 +406,13 @@ export default function AdminOrders() {
               <h4 className="mb-2 font-medium">Items</h4>
               <div className="space-y-2">
                 {detail.items.map((it) => (
-                  <div
-                    key={it.id}
-                    className="flex items-center justify-between text-sm"
-                  >
+                  <div key={it.id} className="flex items-center justify-between text-sm">
                     <div>
                       <div className="font-medium">
                         {it.product?.name || it.productId}
                       </div>
                       <div className="text-xs text-neutral-500">
-                        Qty: {it.quantity} · Unit:{" "}
-                        {money.format(asNumber(it.unitPrice))}
+                        Qty: {it.quantity} · Unit: {money.format(asNumber(it.unitPrice))}
                       </div>
                     </div>
                     <div className="font-medium">
@@ -514,28 +462,20 @@ export default function AdminOrders() {
             <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Change status</h4>
               <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    "RECEIVED",
-                    "IN_PROGRESS",
-                    "COMPLETED",
-                    "REFUSED",
-                    "CANCELLED",
-                  ] as OrderStatus[]
-                ).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => changeStatus(s)}
-                    disabled={saving || detail.status === s}
-                    className={`rounded px-3 py-2 text-sm border disabled:opacity-50 ${
-                      detail.status === s
-                        ? "bg-neutral-200"
-                        : "hover:bg-neutral-50"
-                    }`}
-                  >
-                    {s.replace("_", " ")}
-                  </button>
-                ))}
+                {(["RECEIVED", "IN_PROGRESS", "COMPLETED", "REFUSED", "CANCELLED"] as OrderStatus[]).map(
+                  (s) => (
+                    <button
+                      key={s}
+                      onClick={() => changeStatus(s)}
+                      disabled={saving || detail.status === s}
+                      className={`rounded px-3 py-2 text-sm border disabled:opacity-50 ${
+                        detail.status === s ? "bg-neutral-200" : "hover:bg-neutral-50"
+                      }`}
+                    >
+                      {s.replace("_", " ")}
+                    </button>
+                  )
+                )}
               </div>
               <p className="mt-2 text-xs text-neutral-500">
                 Completing an order decreases product stock by item quantities.

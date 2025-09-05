@@ -2,12 +2,29 @@
 import axios from "axios";
 import { getToken, clearToken } from "./auth";
 
-const base =
-  (import.meta as any)?.env?.VITE_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://localhost:4000";
+function pickBaseURL() {
+  const raw = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  const envBase = typeof raw === "string" && raw.trim() ? raw.trim() : "";
+  const normalized = envBase ? envBase.replace(/\/+$/, "") : "";
+
+  // fallback só se NÃO houver env
+  const fallback = "http://localhost:4000";
+  const base = normalized || fallback;
+
+  // log útil no dev: veja no console se está vindo do Render ou do localhost
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[API] baseURL = ${base} ${
+        normalized ? "(from VITE_API_BASE_URL)" : "(fallback localhost)"
+      }`
+    );
+  }
+  return base;
+}
 
 export const api = axios.create({
-  baseURL: base,
+  baseURL: pickBaseURL(),
   withCredentials: true,
   timeout: 12000,
   headers: { Accept: "application/json" },
@@ -25,7 +42,6 @@ api.interceptors.request.use((cfg) => {
 api.interceptors.response.use(
   (r) => r,
   (err) => {
-    // expira/sem permissão -> derruba sessão e envia p/ login admin
     if (err?.response?.status === 401) {
       clearToken();
       if (!location.pathname.startsWith("/admin/login")) {

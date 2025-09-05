@@ -1,13 +1,14 @@
+// src/pages/Checkout.tsx
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Minus, Plus, Trash2, ArrowLeft } from "lucide-react";
+import { Minus, Plus, Trash2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/components/cart/CartProvider";
 import { money } from "@/utils/money";
+import { api } from "@/services/api";
 
 export default function Checkout() {
   const { items, increment, decrement, remove } = useCart();
 
-  // Subtotal só com itens que têm price numérico
   const numericSubtotal = useMemo(
     () =>
       items.reduce((sum, it) => {
@@ -25,7 +26,6 @@ export default function Checkout() {
   );
   const subtotalDisplay = hasAnyNumeric ? money.format(numericSubtotal) : "—";
 
-  // Form (somente UI; mantém seu fluxo atual)
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -39,14 +39,81 @@ export default function Checkout() {
     postalCode: "",
     note: "",
   });
+  const [sending, setSending] = useState(false);
+  const [sentOk, setSentOk] = useState(false);
 
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    alert("Thanks! We’ll contact you shortly.");
+    if (items.length === 0) {
+      alert("Your bag is empty.");
+      return;
+    }
+    setSending(true);
+    setSentOk(false);
+
+    try {
+      const payload = {
+        customer: {
+          name: form.name,
+          email: form.email,
+          phone: form.phone || null,
+          marketingOptIn: false,
+          company: form.company || null,
+        },
+        address: {
+          line1: form.line1,
+          line2: form.line2 || null,
+          district: form.district || null,
+          city: form.city,
+          state: form.state || null,
+          postalCode: form.postalCode || null,
+          country: "US",
+        },
+        items: items.map((it) => {
+          const [pid, vid] = String(it.id).split("::");
+          return {
+            productId: pid,
+            quantity: Number.isFinite(it.quantity) ? it.quantity ?? 1 : 1,
+            unitPrice: typeof it.price === "number" ? it.price : undefined,
+            variantId: it.variantId || vid || null,
+            variantName: it.variantName || null,
+          };
+        }),
+        note: form.note || null,
+      };
+
+      // 🚫 sem cookies nesta rota pública (evita CORS estrito)
+      await api.post("/orders", payload, { withCredentials: false });
+
+      // limpa o carrinho (remove item a item)
+      for (const it of items) {
+        remove(it.id);
+      }
+      setSentOk(true);
+      // limpa formulário
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        line1: "",
+        line2: "",
+        district: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        note: "",
+      });
+    } catch (err) {
+      console.error("send order failed", err);
+      alert("We couldn’t send your request. Please try again in a moment.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -61,7 +128,6 @@ export default function Checkout() {
         </Link>
       </div>
 
-      {/* Empilha em telas menores; lado a lado só em lg+ para evitar quebra */}
       <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
         {/* Review */}
         <section className="rounded-2xl border bg-white p-4">
@@ -82,20 +148,13 @@ export default function Checkout() {
             <>
               <ul className="space-y-3">
                 {items.map((it) => {
-                  const qty = Number.isFinite(it.quantity)
-                    ? it.quantity ?? 0
-                    : 0;
+                  const qty = Number.isFinite(it.quantity) ? it.quantity ?? 0 : 0;
                   const lineTotal =
-                    typeof it.price === "number"
-                      ? money.format(it.price * qty)
-                      : "—";
+                    typeof it.price === "number" ? money.format(it.price * qty) : "—";
 
                   return (
                     <li
                       key={it.id}
-                      /* Grid responsivo: 
-                         - xs: [thumb | conteúdo] e total quebra abaixo à direita
-                         - sm+: [thumb | conteúdo | total] */
                       className="grid gap-3 rounded-xl border p-2 sm:grid-cols-[64px,1fr,auto]"
                     >
                       {/* Thumb */}
@@ -111,15 +170,13 @@ export default function Checkout() {
                         ) : null}
                       </div>
 
-                      {/* Conteúdo + Controles */}
+                      {/* Info + controls */}
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-neutral-900">
                           {it.name}
                         </div>
                         {it.variantName && (
-                          <div className="text-xs text-neutral-500">
-                            {it.variantName}
-                          </div>
+                          <div className="text-xs text-neutral-500">{it.variantName}</div>
                         )}
                         <div className="mt-0.5 text-xs font-medium">
                           {typeof it.price === "number" ? (
@@ -129,7 +186,6 @@ export default function Checkout() {
                           )}
                         </div>
 
-                        {/* Controles (ficam abaixo no mobile, em linha no sm+) */}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <div className="flex items-center gap-1">
                             <button
@@ -139,9 +195,7 @@ export default function Checkout() {
                             >
                               <Minus className="h-4 w-4" />
                             </button>
-                            <div className="w-8 text-center text-sm font-medium">
-                              {qty}
-                            </div>
+                            <div className="w-8 text-center text-sm font-medium">{qty}</div>
                             <button
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
                               onClick={() => increment(it.id)}
@@ -162,7 +216,7 @@ export default function Checkout() {
                         </div>
                       </div>
 
-                      {/* Line total (vai para a direita; em xs quebra abaixo à direita) */}
+                      {/* Line total */}
                       <div className="justify-self-end text-right text-sm font-semibold text-neutral-900 sm:self-center">
                         {lineTotal}
                       </div>
@@ -171,7 +225,6 @@ export default function Checkout() {
                 })}
               </ul>
 
-              {/* Subtotal */}
               <div className="mt-4 border-t pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-neutral-600">Subtotal</span>
@@ -191,7 +244,15 @@ export default function Checkout() {
 
         {/* Form */}
         <section className="rounded-2xl border bg-white p-4">
-          <h2 className="mb-3 text-lg font-semibold">Contact Info</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Contact Info</h2>
+            {sentOk && (
+              <span className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                Sent! We’ll contact you shortly.
+              </span>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Contact */}
@@ -341,9 +402,10 @@ export default function Checkout() {
             <div className="pt-2">
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600 transition hover:bg-orange-50"
+                disabled={sending}
+                className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600 transition hover:bg-orange-50 disabled:opacity-60"
               >
-                Send request
+                {sending ? "Sending…" : "Send request"}
               </button>
             </div>
           </form>
