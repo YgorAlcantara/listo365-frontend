@@ -1,10 +1,10 @@
-// src/pages/Checkout.tsx
-import { useMemo, useState } from "react";
+// frontend/src/pages/Checkout.tsx
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus, Trash2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/components/cart/CartProvider";
 import { money } from "@/utils/money";
-import { api } from "@/services/api";
+import { publicApi } from "@/services/api";
 
 export default function Checkout() {
   const { items, increment, decrement, remove } = useCart();
@@ -41,6 +41,7 @@ export default function Checkout() {
   });
   const [sending, setSending] = useState(false);
   const [sentOk, setSentOk] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -48,10 +49,19 @@ export default function Checkout() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // built-in HTML validation (required, minLength, type=email)
+    const el = formRef.current;
+    if (el && !el.checkValidity()) {
+      el.reportValidity();
+      return;
+    }
+
     if (items.length === 0) {
       alert("Your bag is empty.");
       return;
     }
+
     setSending(true);
     setSentOk(false);
 
@@ -86,13 +96,11 @@ export default function Checkout() {
         note: form.note || null,
       };
 
-      // 🚫 sem cookies nesta rota pública (evita CORS estrito)
-      await api.post("/orders", payload, { withCredentials: false });
+      await publicApi.post("/orders", payload);
 
-      // limpa o carrinho (remove item a item)
-      for (const it of items) {
-        remove(it.id);
-      }
+      // limpa carrinho (remove item a item)
+      for (const it of items) remove(it.id);
+
       setSentOk(true);
       // limpa formulário
       setForm({
@@ -148,9 +156,13 @@ export default function Checkout() {
             <>
               <ul className="space-y-3">
                 {items.map((it) => {
-                  const qty = Number.isFinite(it.quantity) ? it.quantity ?? 0 : 0;
+                  const qty = Number.isFinite(it.quantity)
+                    ? it.quantity ?? 0
+                    : 0;
                   const lineTotal =
-                    typeof it.price === "number" ? money.format(it.price * qty) : "—";
+                    typeof it.price === "number"
+                      ? money.format(it.price * qty)
+                      : "—";
 
                   return (
                     <li
@@ -176,7 +188,9 @@ export default function Checkout() {
                           {it.name}
                         </div>
                         {it.variantName && (
-                          <div className="text-xs text-neutral-500">{it.variantName}</div>
+                          <div className="text-xs text-neutral-500">
+                            {it.variantName}
+                          </div>
                         )}
                         <div className="mt-0.5 text-xs font-medium">
                           {typeof it.price === "number" ? (
@@ -195,7 +209,9 @@ export default function Checkout() {
                             >
                               <Minus className="h-4 w-4" />
                             </button>
-                            <div className="w-8 text-center text-sm font-medium">{qty}</div>
+                            <div className="w-8 text-center text-sm font-medium">
+                              {qty}
+                            </div>
                             <button
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
                               onClick={() => increment(it.id)}
@@ -254,7 +270,12 @@ export default function Checkout() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            className="space-y-4"
+            noValidate
+          >
             {/* Contact */}
             <div className="grid gap-3 md:grid-cols-2">
               <div>
@@ -263,6 +284,7 @@ export default function Checkout() {
                 </label>
                 <input
                   required
+                  minLength={2}
                   value={form.name}
                   onChange={(e) => update("name", e.target.value)}
                   className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/60"
@@ -315,6 +337,7 @@ export default function Checkout() {
                 </label>
                 <input
                   required
+                  minLength={2}
                   value={form.line1}
                   onChange={(e) => update("line1", e.target.value)}
                   className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/60"

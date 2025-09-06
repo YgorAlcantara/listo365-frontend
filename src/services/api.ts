@@ -1,32 +1,38 @@
-// src/services/api.ts
+// frontend/src/services/api.ts
 import axios from "axios";
 import { getToken, clearToken } from "./auth";
 
-function pickBaseURL() {
-  const raw = (import.meta as any)?.env?.VITE_API_BASE_URL;
-  const envBase = typeof raw === "string" && raw.trim() ? raw.trim() : "";
-  const normalized = envBase ? envBase.replace(/\/+$/, "") : "";
-
-  // fallback só se NÃO houver env
-  const fallback = "http://localhost:4000";
-  const base = normalized || fallback;
-
-  // log útil no dev: veja no console se está vindo do Render ou do localhost
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.info(
-      `[API] baseURL = ${base} ${
-        normalized ? "(from VITE_API_BASE_URL)" : "(fallback localhost)"
-      }`
-    );
+/**
+ * Ordem de resolução do baseURL:
+ * 1) window.__API_BASE__ (permite trocar via console se quiser)
+ * 2) import.meta.env.VITE_API_BASE_URL (env do Vite)
+ * 3) fallback: Render (produção) -> https://listo365-backend.onrender.com
+ */
+declare global {
+  interface Window {
+    __API_BASE__?: string;
   }
-  return base;
 }
 
+const fromWindow = (typeof window !== "undefined" && window.__API_BASE__) || "";
+const fromEnv = ((import.meta as any)?.env?.VITE_API_BASE_URL as string) || "";
+
+const base = (fromWindow || fromEnv || "https://listo365-backend.onrender.com")
+  .trim()
+  .replace(/\/+$/, "");
+
+console.log(
+  "[API] baseURL =",
+  base,
+  "| VITE_API_BASE_URL =",
+  (import.meta as any)?.env?.VITE_API_BASE_URL
+);
+
+// Cliente autenticado (admin)
 export const api = axios.create({
-  baseURL: pickBaseURL(),
+  baseURL: base,
   withCredentials: true,
-  timeout: 12000,
+  timeout: 15000,
   headers: { Accept: "application/json" },
 });
 
@@ -51,3 +57,11 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+// Cliente público (sem cookies) — usar no Checkout
+export const publicApi = axios.create({
+  baseURL: base,
+  withCredentials: false,
+  timeout: 15000,
+  headers: { Accept: "application/json" },
+});
