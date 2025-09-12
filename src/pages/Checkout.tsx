@@ -1,4 +1,3 @@
-// frontend/src/pages/Checkout.tsx
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus, Trash2, ArrowLeft, CheckCircle2 } from "lucide-react";
@@ -50,7 +49,6 @@ export default function Checkout() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // built-in HTML validation (required, minLength, type=email)
     const el = formRef.current;
     if (el && !el.checkValidity()) {
       el.reportValidity();
@@ -80,7 +78,7 @@ export default function Checkout() {
           district: form.district || null,
           city: form.city,
           state: form.state || null,
-          postalCode: form.postalCode || null,
+          postalCode: form.postalCode, // obrigatório agora
           country: "US",
         },
         items: items.map((it) => {
@@ -98,11 +96,9 @@ export default function Checkout() {
 
       await publicApi.post("/orders", payload);
 
-      // limpa carrinho (remove item a item)
       for (const it of items) remove(it.id);
 
       setSentOk(true);
-      // limpa formulário
       setForm({
         name: "",
         email: "",
@@ -396,9 +392,13 @@ export default function Checkout() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-neutral-700">
-                    Postal code (optional)
+                    Postal code <span className="text-red-600">*</span>
                   </label>
                   <input
+                    required
+                    // US ZIP 5 ou ZIP+4; altere se precisar de outro país
+                    pattern="^\d{5}(-\d{4})?$"
+                    title="Enter a valid 5-digit ZIP code (or ZIP+4)"
                     value={form.postalCode}
                     onChange={(e) => update("postalCode", e.target.value)}
                     className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/60"

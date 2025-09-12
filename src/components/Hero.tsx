@@ -29,7 +29,7 @@ export function Hero() {
         {/* headline + sub */}
         <div className="mt-5 max-w-3xl text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.4)]">
           <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl">
-            Solutions for a Cleaner World
+            Solutions for a Cleaner Business
           </h1>
           <p className="mt-3 text-base leading-relaxed text-white/90">
             Professionally engineered chemical solutions for maintenance teams, contractors and facilities.

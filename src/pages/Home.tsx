@@ -1,12 +1,13 @@
 // src/pages/Home.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api } from "@/services/api";
 import type { Product } from "@/types";
 import { ProductCard } from "@/components/ProductCard";
 import { Search } from "lucide-react";
 import { Hero } from "@/components/Hero";
 
-const EXCLUDED = new Set(["bathroom cleaners", "glass cleaners"]); // excluir (case-insensitive)
+const EXCLUDED = new Set(["bathroom cleaners", "glass cleaners"]); // case-insensitive
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,7 @@ export default function Home() {
       setLoading(true);
       setError(null);
       try {
-        const r = await api.get<Product[]>("/products?sort=sortOrder");
+        const r = await api.get<Product[]>("/products", { params: { sort: "sortOrder" } });
         if (!alive) return;
         setAll(Array.isArray(r.data) ? r.data : []);
       } catch (e: any) {
@@ -42,19 +43,19 @@ export default function Home() {
   // filtra inativos e categorias excluídas
   const allowed = useMemo(() => {
     return (all || []).filter((p) => {
-      if (p.active === false) return false;
-      const cat = p.category;
-      const catName = norm(cat?.name);
-      const parentName = norm(cat?.parent?.name);
+      if (p?.active === false) return false;
+      const catName = norm(p?.category?.name);
+      const parentName = norm(p?.category?.parent?.name);
       if (EXCLUDED.has(catName) || EXCLUDED.has(parentName)) return false;
       return true;
     });
   }, [all]);
 
+  // nomes de categoria-pai
   const parentNames = useMemo(() => {
     const set = new Set<string>();
     allowed.forEach((p) => {
-      const top = p.category?.parent?.name || p.category?.name || "Other";
+      const top = p?.category?.parent?.name || p?.category?.name || "Other";
       set.add(top);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -62,14 +63,14 @@ export default function Home() {
 
   const matchesQuery = (p: Product) => {
     if (!q.trim()) return true;
-    const n = norm(p.name);
-    const d = norm(p.description);
+    const n = norm(p?.name);
+    const d = norm(p?.description);
     const term = norm(q);
     return n.includes(term) || d.includes(term);
   };
 
   const topName = (p: Product) =>
-    p.category?.parent?.name || p.category?.name || "Other";
+    p?.category?.parent?.name || p?.category?.name || "Other";
 
   const visible = useMemo(
     () =>
@@ -81,18 +82,19 @@ export default function Home() {
     [allowed, q, parentFilter]
   );
 
+  // agrupamento por subcategoria quando um pai está selecionado
   const groupedBySub = useMemo(() => {
     if (parentFilter === "ALL") return null;
     const map = new Map<string, Product[]>();
     for (const p of visible) {
-      const sub = p.category?.name || "General";
+      const sub = p?.category?.name || "General";
       if (!map.has(sub)) map.set(sub, []);
       map.get(sub)!.push(p);
     }
     for (const [k, arr] of map.entries()) {
       arr.sort((a, b) => {
-        const s = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-        return s !== 0 ? s : a.name.localeCompare(b.name);
+        const s = (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0);
+        return s !== 0 ? s : (a?.name || "").localeCompare(b?.name || "");
       });
       map.set(k, arr);
     }
@@ -180,12 +182,12 @@ export default function Home() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {visible
                     .sort((a, b) => {
-                      const s = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-                      return s !== 0 ? s : a.name.localeCompare(b.name);
+                      const s = (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0);
+                      return s !== 0 ? s : (a?.name || "").localeCompare(b?.name || "");
                     })
                     .map((p) => {
-                      const firstActiveVariant = Array.isArray(p.variants)
-                        ? p.variants.find((v) => v.active !== false)
+                      const firstActiveVariant = Array.isArray(p?.variants)
+                        ? p.variants.find((v) => v?.active !== false)
                         : undefined;
                       return (
                         <ProductCard
@@ -194,11 +196,7 @@ export default function Home() {
                           slug={p.slug || p.id}
                           name={p.name}
                           description={p.description || ""}
-                          price={
-                            typeof p.price === "number"
-                              ? (p.price as number)
-                              : undefined
-                          }
+                          price={typeof p.price === "number" ? (p.price as number) : undefined}
                           images={p.images || []}
                           imageUrl={p.imageUrl || undefined}
                           packageSize={p.packageSize || undefined}
@@ -210,9 +208,7 @@ export default function Home() {
                             p.category
                               ? {
                                   name: p.category.name,
-                                  parent: p.category.parent
-                                    ? { name: p.category.parent.name }
-                                    : null,
+                                  parent: p.category.parent ? { name: p.category.parent.name } : null,
                                 }
                               : null
                           }
@@ -226,15 +222,13 @@ export default function Home() {
                 {groupedBySub.map(([subName, items]) => (
                   <section key={subName} className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-base font-semibold text-neutral-900">
-                        {subName}
-                      </h2>
+                      <h2 className="text-base font-semibold text-neutral-900">{subName}</h2>
                       <div className="ml-4 h-[1px] flex-1 bg-neutral-200" />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {items.map((p) => {
-                        const firstActiveVariant = Array.isArray(p.variants)
-                          ? p.variants.find((v) => v.active !== false)
+                        const firstActiveVariant = Array.isArray(p?.variants)
+                          ? p.variants.find((v) => v?.active !== false)
                           : undefined;
                         return (
                           <ProductCard
@@ -243,11 +237,7 @@ export default function Home() {
                             slug={p.slug || p.id}
                             name={p.name}
                             description={p.description || ""}
-                            price={
-                              typeof p.price === "number"
-                                ? (p.price as number)
-                                : undefined
-                            }
+                            price={typeof p.price === "number" ? (p.price as number) : undefined}
                             images={p.images || []}
                             imageUrl={p.imageUrl || undefined}
                             packageSize={p.packageSize || undefined}

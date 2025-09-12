@@ -1,4 +1,3 @@
-// src/pages/Admin/Orders.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/services/api";
 import { money } from "@/utils/money";

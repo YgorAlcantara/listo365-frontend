@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+// src/pages/Admin/Dashboard.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/services/api";
 import type { Product, ProductVisibility } from "@/types";
@@ -30,7 +31,7 @@ type Form = {
   imageUrl?: string;
   categoryParentId?: string;
   categoryId?: string;
-  imagesText: string; // (não usamos mais no formulário – mantido pra compat)
+  imagesText: string;
   visibility: ProductVisibility;
 };
 
@@ -39,14 +40,11 @@ type VariantForm = {
   name: string;
   price: string;
   stock: string;
-  // sortOrder removido da UI; manteremos internamente só pra preservar quando já existir:
   sortOrder?: number;
   active: boolean;
   sku?: string;
-
-  // 🔥 NOVO — imagens por variante:
   imageUrl?: string;
-  imagesText?: string; // textarea (uma URL por linha) -> vira array no save()
+  imagesText?: string;
 };
 
 type ActiveFilter = "all" | "active" | "archived";
@@ -81,7 +79,6 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Filtros nos cabeçalhos
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
 
@@ -114,7 +111,7 @@ export default function Dashboard() {
       imageUrl: p.imageUrl || "",
       categoryParentId: parentId,
       categoryId: catId,
-      imagesText: "", // deixado vazio; agora imagens são por variante
+      imagesText: "",
       visibility: {
         price: p.visibility?.price ?? false,
         packageSize: p.visibility?.packageSize ?? true,
@@ -124,7 +121,6 @@ export default function Dashboard() {
       },
     });
 
-    // Mapeia variantes do produto -> VariantForm (com imagens)
     setVariants(
       Array.isArray((p as any).variants)
         ? (p as any).variants.map((v: any, idx: number) => ({
@@ -174,6 +170,21 @@ export default function Dashboard() {
       .filter(Boolean);
   }
 
+  // PATCH por padrão (contorna CORS antigo). Se falhar por rota inexistente, tenta PUT.
+  async function saveProductWithFallback(id: string, payload: any) {
+    try {
+      await api.patch(`/products/${id}`, payload);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      // se o backend antigo não tiver PATCH, tenta PUT
+      if (!status || status === 404 || status === 405) {
+        await api.put(`/products/${id}`, payload);
+      } else {
+        throw err;
+      }
+    }
+  }
+
   async function save() {
     const priceNum = parseFloat(String(form.price).replace(",", "."));
     if (!Number.isFinite(priceNum) || priceNum < 0) {
@@ -186,7 +197,6 @@ export default function Dashboard() {
       return;
     }
 
-    // -> variantes com imagens
     const variantsPayload = variants
       .map((v, idx) => {
         const n = Number(String(v.price).replace(",", "."));
@@ -196,7 +206,6 @@ export default function Dashboard() {
           name: v.name.trim(),
           price: safePrice,
           stock: parseInt(String(v.stock || "0"), 10) || 0,
-          // manter sort antigo se existir; senão, (idx+1)*10
           sortOrder:
             typeof v.sortOrder === "number" ? v.sortOrder : (idx + 1) * 10,
           active: !!v.active,
@@ -220,7 +229,6 @@ export default function Dashboard() {
         pdfUrl: form.pdfUrl?.trim() || undefined,
         imageUrl: form.imageUrl?.trim() || undefined,
         categoryId: form.categoryId || undefined,
-        // 🔄 não enviamos mais imagens globais; mantemos compat se necessário:
         images: [],
         visibility: {
           price: !!form.visibility.price,
@@ -233,7 +241,7 @@ export default function Dashboard() {
       };
 
       if (editing) {
-        await api.put(`/products/${editing}`, payload);
+        await saveProductWithFallback(editing, payload); // PATCH -> PUT fallback
         toast.success("Product updated");
       } else {
         await api.post("/products", payload);
@@ -252,7 +260,6 @@ export default function Dashboard() {
 
   async function moveSort(p: Product, delta: number) {
     try {
-      // otimista
       setList((prev) =>
         prev.map((x) =>
           x.id === p.id ? { ...x, sortOrder: (x.sortOrder ?? 0) + delta } : x
@@ -269,7 +276,6 @@ export default function Dashboard() {
     }
   }
 
-  // Arquivar / Desarquivar — otimista + refresh
   async function archiveProduct(p: Product) {
     try {
       setList((prev) =>
@@ -310,7 +316,7 @@ export default function Dashboard() {
       if (r.data?.archived) {
         toast.success("Product archived (in use by orders).");
         setList((prev) =>
-          prev.map((x) => (x.id === p.id ? { ...x, active: false } : x))
+            prev.map((x) => (x.id === p.id ? { ...x, active: false } : x))
         );
       } else {
         toast.success("Product deleted.");
@@ -358,7 +364,6 @@ export default function Dashboard() {
     return unarchiveProduct(p);
   }
 
-  // Filtro combinado
   const visible = useMemo(() => {
     return list.filter((p) => {
       const passActive =
@@ -547,7 +552,7 @@ export default function Dashboard() {
             </label>
           </div>
 
-          {/* 🔥 VARIANTES (com imagens) — agora ACIMA de Visibility */}
+          {/* VARIANTES */}
           <div className="space-y-3 rounded-2xl border p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Variants</h3>
@@ -721,7 +726,7 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Visibilidade (agora abaixo das variantes) */}
+          {/* Visibility */}
           <div className="space-y-2 rounded-2xl border p-3">
             <div className="mb-1 text-sm font-semibold">Visibility</div>
             <div className="flex flex-wrap gap-2">
@@ -847,9 +852,9 @@ export default function Dashboard() {
 
           <tbody>
             {visible.map((p) => (
-              <>
+              <React.Fragment key={p.id}>
                 {/* Linha principal */}
-                <tr key={p.id} className="border-t align-top">
+                <tr className="border-t align-top">
                   {/* order */}
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
@@ -1000,7 +1005,7 @@ export default function Dashboard() {
                   </td>
                   <td className="p-0" />
                 </tr>
-              </>
+              </React.Fragment>
             ))}
 
             {visible.length === 0 && (

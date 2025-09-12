@@ -1,14 +1,11 @@
 // src/components/Header.tsx
-import { useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { useState, type MouseEvent } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { CartMenu } from "@/components/cart/CartMenu";
 import { useAuth } from "@/hooks/useAuth";
-
-// SVG local (você já apontou pra pasta assets/logo)
 import logo from "@/assets/logo/Lst365Logo4.png";
-import AccentBar from "./ui/AccentBar";
-// Ou use uma URL do .env se preferir CDN
+
 const logoSrc = (import.meta as any).env?.VITE_LOGO_URL || logo;
 
 const COLORS = {
@@ -20,17 +17,26 @@ const COLORS = {
   accentTo: "to-orange-500",
 };
 
-const nav = [
-  { to: "/", label: "Products" },
-  { to: "/checkout", label: "Checkout" },
-];
-
 export function Header() {
   const { isAuthed } = useAuth();
   const adminLink = isAuthed ? "/admin" : "/admin/login";
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const close = () => setOpen(false);
+
+  // Vai para o catálogo (antes do filtro/search)
+  function goToProducts(e?: MouseEvent) {
+    e?.preventDefault();
+    if (pathname === "/") {
+      document
+        .getElementById("catalog")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      navigate("/#catalog");
+    }
+    close();
+  }
 
   return (
     <header
@@ -60,14 +66,44 @@ export function Header() {
 
         {/* Navegação desktop */}
         <nav className="hidden items-center gap-6 md:flex">
-          {nav.map((item) => (
-            <NavItem key={item.to} to={item.to} label={item.label} />
-          ))}
+          {/* Products -> rola até o catálogo */}
+          <NavLink
+            to="/#catalog"
+            onClick={goToProducts}
+            className={({ isActive }) =>
+              [
+                "group relative inline-flex items-center text-sm font-medium tracking-wide",
+                isActive ? "text-white" : "text-white/80 hover:text-white",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 rounded",
+                "px-1 py-1.5",
+              ].join(" ")
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className="px-1">Products</span>
+                <span
+                  className={[
+                    "pointer-events-none absolute -bottom-0.5 left-1 right-1 h-[2px]",
+                    "origin-left scale-x-0 transition-transform duration-300",
+                    "rounded-full bg-gradient-to-r",
+                    COLORS.accentFrom,
+                    COLORS.accentTo,
+                    "group-hover:scale-x-100",
+                    isActive ? "scale-x-100" : "",
+                  ].join(" ")}
+                />
+              </>
+            )}
+          </NavLink>
+
+          {/* Checkout */}
+          <NavItem to="/checkout" label="Checkout" />
 
           {/* Admin */}
           <NavItem to={adminLink} label="Admin" />
 
-          {/* Cart - ícone branco + hover laranja */}
+          {/* Cart */}
           <div className="ml-1">
             <CartMenu
               buttonClassName="text-white hover:bg-orange-500/15 focus-visible:ring-orange-500/60"
@@ -111,9 +147,9 @@ export function Header() {
       >
         <div className="px-4 py-3">
           <MobileItem
-            to="/"
+            to="/#catalog"
             label="Products"
-            onClick={close}
+            onClick={goToProducts}
             active={pathname === "/"}
           />
           <MobileItem
@@ -177,13 +213,13 @@ function MobileItem({
 }: {
   to: string;
   label: string;
-  onClick: () => void;
+  onClick: (e?: MouseEvent) => void;
   active?: boolean;
 }) {
   return (
     <Link
       to={to}
-      onClick={onClick}
+      onClick={(e) => onClick(e)}
       className={[
         "flex items-center justify-between rounded-lg px-3 py-3",
         active ? "bg-white/10 text-white" : "text-white/90 hover:bg-white/5",
