@@ -19,7 +19,7 @@ declare global {
 
 const RENDER_FALLBACK = "https://listo365-backend.onrender.com";
 // 🔁 defina seu domínio oficial de API aqui (evita CORS e facilita CDN/WAF)
-const PROD_DEFAULT = "https://api.listo365cleaningsolutions.com";
+const PROD_DEFAULT = "/api";
 
 function normalize(u: string) {
   return (u || "").trim().replace(/\/+$/, "");
