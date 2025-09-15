@@ -54,10 +54,17 @@ function PublicShell() {
 }
 
 export default function App() {
-  // Warm-up
+  // Warm-up do backend para evitar cold start (sem CORS em produção)
   useEffect(() => {
-    const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
-    fetch(`${base}/health`, { cache: "no-store" }).catch(() => {});
+    const isLocal =
+      typeof window !== "undefined" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+
+    const health = isLocal
+      ? "http://localhost:4000/health"
+      : "/api/health"; // via proxy do Vercel
+
+    fetch(health, { cache: "no-store", mode: "no-cors" }).catch(() => {});
   }, []);
 
   return (

@@ -1,4 +1,4 @@
-// frontend/src/services/api.ts
+// src/services/api.ts
 import axios from "axios";
 import { getToken, clearToken } from "./auth";
 
@@ -8,69 +8,50 @@ declare global {
   }
 }
 
+// Produção: usa o proxy do Vercel (/api) para evitar CORS
+const PROD_PROXY = "/api";
+// Desenvolvimento local: seu backend na porta 4000
+const LOCAL_DEFAULT = "http://localhost:4000";
+
 function normalize(u: string) {
   return (u || "").trim().replace(/\/+$/, "");
 }
 
-function isLocalHost(host: string) {
-  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
-}
-
 function resolveBase(): string {
-  const isBrowser = typeof window !== "undefined";
+  const w = typeof window !== "undefined" ? window : undefined;
 
-  // 1) override por window (debug rápido no console: setApiBase('...'))
-  const winBase = isBrowser ? window.__API_BASE__ : "";
-  if (winBase) return normalize(winBase);
-
-  // 2) env do Vite (use só no dev local; no Vercel deixe vazio)
-  const envBase =
+  const fromWindow = (w && w.__API_BASE__) || "";
+  const fromEnv =
     (typeof import.meta !== "undefined" &&
       (import.meta as any)?.env?.VITE_API_BASE_URL) ||
     "";
-  if (envBase) return normalize(envBase as string);
 
-  // 3) fallback: dev local -> localhost; produção/preview -> /api
-  if (!isBrowser) return "/api"; // SSR/estático
+  if (fromWindow) return normalize(fromWindow);
+  if (fromEnv) return normalize(fromEnv as string);
 
-  const host = window.location.hostname;
-  if (isLocalHost(host)) return "http://localhost:3000";
+  const host = w?.location?.hostname ?? "localhost";
+  const isLocal =
+    host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 
-  return "/api";
+  // Dev -> bate direto no backend local
+  // Prod -> usa o proxy do Vercel (/api), evitando CORS
+  return normalize(isLocal ? LOCAL_DEFAULT : PROD_PROXY);
 }
 
 let BASE_API_URL = resolveBase();
 
-// Log de diagnóstico
-(function logDiagnostics() {
-  const viteEnv = (import.meta as any)?.env?.VITE_API_BASE_URL;
+if (typeof window !== "undefined") {
+  // Log de diagnóstico
   // eslint-disable-next-line no-console
-  console.log("[API] baseURL =", BASE_API_URL, "| VITE_API_BASE_URL =", viteEnv);
-
-  if (typeof window !== "undefined") {
-    const origin = window.location.origin;
-    if (
-      BASE_API_URL.startsWith("http") &&
-      !BASE_API_URL.startsWith(origin) &&
-      !BASE_API_URL.startsWith("http://localhost")
-    ) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[API] baseURL é cross-origin. Se o backend não liberar CORS, vai quebrar."
-      );
-    }
-    if (!BASE_API_URL.startsWith("http")) {
-      // eslint-disable-next-line no-console
-      console.info("[API] Usando base relativa (mesma origem). Sem CORS 🎉");
-    }
-  }
-})();
-
-// Helpers
-export function getApiBase() {
-  return BASE_API_URL;
+  console.log(
+    "[API] baseURL =",
+    BASE_API_URL,
+    "| VITE_API_BASE_URL =",
+    (import.meta as any)?.env?.VITE_API_BASE_URL
+  );
 }
 
+// Permite trocar a base em runtime (útil para testar sem rebuild)
 export function setApiBase(url: string) {
   BASE_API_URL = normalize(url);
   if (typeof window !== "undefined") {
@@ -82,20 +63,15 @@ export function setApiBase(url: string) {
   console.warn("[API] baseURL alterado em runtime para:", BASE_API_URL);
 }
 
-// === Axios clients ===
-
 // Cliente autenticado (admin)
 export const api = axios.create({
   baseURL: BASE_API_URL,
-  withCredentials: true, // se não usa cookie/sessão, pode ser false
+  withCredentials: true,
   timeout: 15000,
-  headers: {
-    Accept: "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-  },
+  headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
 });
 
-// Injeta Bearer token (se houver)
+// Injeta Bearer token quando houver
 api.interceptors.request.use((cfg) => {
   const t = getToken();
   if (t) {
@@ -105,7 +81,7 @@ api.interceptors.request.use((cfg) => {
   return cfg;
 });
 
-// Se 401 → limpa token e manda para login admin
+// Em 401, limpa token e manda para /admin/login
 api.interceptors.response.use(
   (r) => r,
   (err) => {
@@ -122,13 +98,12 @@ api.interceptors.response.use(
   }
 );
 
-// Cliente público (sem cookies)
+// Cliente público (sem cookies) — usar no Checkout
 export const publicApi = axios.create({
   baseURL: BASE_API_URL,
   withCredentials: false,
   timeout: 15000,
-  headers: {
-    Accept: "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-  },
+  headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
 });
+
+export { BASE_API_URL };
