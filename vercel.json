@@ -2,11 +2,13 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://api.listo365cleaningsolutions.com/$1"
+      "destination": "https://listo365-backend.onrender.com/$1"
     },
     {
       "source": "/(.*)",
-      "has": [{ "type": "header", "key": "accept", "value": "text/html" }],
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/html.*" }
+      ],
       "destination": "/index.html"
     }
   ]
