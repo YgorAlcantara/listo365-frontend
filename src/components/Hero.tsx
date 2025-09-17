@@ -1,6 +1,6 @@
 // src/components/Hero.tsx
 import { CheckCircle } from "lucide-react";
-import heroBg from "@/assets/Banner/11.png";
+import heroBg from "@/assets/Banner/12.png";
 
 export function Hero() {
   return (
