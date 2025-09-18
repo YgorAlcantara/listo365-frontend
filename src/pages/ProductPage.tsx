@@ -1,7 +1,7 @@
 // src/pages/ProductPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
-import { api } from "@/services/api";
+import { getToken } from "@/services/auth";
 import type { Product } from "@/types";
 import { money } from "@/utils/money";
 import { useCart } from "@/components/cart/CartProvider";
@@ -42,16 +42,8 @@ export default function ProductPage() {
 
   const { add } = useCart();
 
-  // Se o axios tem Authorization (admin), pedimos ?all=1
-  const wantsAll = useMemo(() => {
-    const h: any = (api as any)?.defaults?.headers;
-    const auth =
-      h?.Authorization ||
-      h?.authorization ||
-      h?.common?.Authorization ||
-      h?.common?.authorization;
-    return Boolean(auth);
-  }, []);
+  // Se existe token salvo (admin), pedimos ?all=1
+  const wantsAll = useMemo(() => Boolean(getToken()), []);
 
   useEffect(() => {
     let alive = true;
