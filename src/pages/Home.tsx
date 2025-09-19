@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "@/services/api";
 import type { Product } from "@/types";
-import { ProductCard } from "@/components/ProductCard";
+import ProductCard from "@/components/ProductCard";
 import { Search } from "lucide-react";
 import { Hero } from "@/components/Hero";
 
@@ -23,7 +23,9 @@ export default function Home() {
       setLoading(true);
       setError(null);
       try {
-        const r = await api.get<Product[]>("/products", { params: { sort: "sortOrder" } });
+        const r = await api.get<Product[]>("/products", {
+          params: { sort: "sortOrder" },
+        });
         if (!alive) return;
         setAll(Array.isArray(r.data) ? r.data : []);
       } catch (e: any) {
@@ -183,38 +185,13 @@ export default function Home() {
                   {visible
                     .sort((a, b) => {
                       const s = (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0);
-                      return s !== 0 ? s : (a?.name || "").localeCompare(b?.name || "");
+                      return s !== 0
+                        ? s
+                        : (a?.name || "").localeCompare(b?.name || "");
                     })
-                    .map((p) => {
-                      const firstActiveVariant = Array.isArray(p?.variants)
-                        ? p.variants.find((v) => v?.active !== false)
-                        : undefined;
-                      return (
-                        <ProductCard
-                          key={p.id}
-                          id={p.id}
-                          slug={p.slug || p.id}
-                          name={p.name}
-                          description={p.description || ""}
-                          price={typeof p.price === "number" ? (p.price as number) : undefined}
-                          images={p.images || []}
-                          imageUrl={p.imageUrl || undefined}
-                          packageSize={p.packageSize || undefined}
-                          pdfUrl={p.pdfUrl || undefined}
-                          stock={p.stock ?? 0}
-                          sale={p.sale}
-                          sku={firstActiveVariant?.sku || null}
-                          category={
-                            p.category
-                              ? {
-                                  name: p.category.name,
-                                  parent: p.category.parent ? { name: p.category.parent.name } : null,
-                                }
-                              : null
-                          }
-                        />
-                      );
-                    })}
+                    .map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
                 </div>
               )
             ) : groupedBySub && groupedBySub.length > 0 ? (
@@ -222,42 +199,15 @@ export default function Home() {
                 {groupedBySub.map(([subName, items]) => (
                   <section key={subName} className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-base font-semibold text-neutral-900">{subName}</h2>
+                      <h2 className="text-base font-semibold text-neutral-900">
+                        {subName}
+                      </h2>
                       <div className="ml-4 h-[1px] flex-1 bg-neutral-200" />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {items.map((p) => {
-                        const firstActiveVariant = Array.isArray(p?.variants)
-                          ? p.variants.find((v) => v?.active !== false)
-                          : undefined;
-                        return (
-                          <ProductCard
-                            key={p.id}
-                            id={p.id}
-                            slug={p.slug || p.id}
-                            name={p.name}
-                            description={p.description || ""}
-                            price={typeof p.price === "number" ? (p.price as number) : undefined}
-                            images={p.images || []}
-                            imageUrl={p.imageUrl || undefined}
-                            packageSize={p.packageSize || undefined}
-                            pdfUrl={p.pdfUrl || undefined}
-                            stock={p.stock ?? 0}
-                            sale={p.sale}
-                            sku={firstActiveVariant?.sku || null}
-                            category={
-                              p.category
-                                ? {
-                                    name: p.category.name,
-                                    parent: p.category.parent
-                                      ? { name: p.category.parent.name }
-                                      : null,
-                                  }
-                                : null
-                            }
-                          />
-                        );
-                      })}
+                      {items.map((p) => (
+                        <ProductCard key={p.id} product={p} />
+                      ))}
                     </div>
                   </section>
                 ))}
