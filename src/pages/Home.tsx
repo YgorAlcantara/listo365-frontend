@@ -189,9 +189,42 @@ export default function Home() {
                         ? s
                         : (a?.name || "").localeCompare(b?.name || "");
                     })
-                    .map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
+                    .map((p) => {
+                      const firstActiveVariant = Array.isArray(p?.variants)
+                        ? p.variants.find((v) => v?.active !== false)
+                        : undefined;
+                      return (
+                        <ProductCard
+                          key={p.id}
+                          id={p.id}
+                          slug={p.slug || p.id}
+                          name={p.name}
+                          description={p.description || ""}
+                          price={
+                            typeof p.price === "number"
+                              ? (p.price as number)
+                              : undefined
+                          }
+                          images={p.images || []}
+                          imageUrl={p.imageUrl || undefined}
+                          packageSize={p.packageSize || undefined}
+                          pdfUrl={p.pdfUrl || undefined}
+                          stock={p.stock ?? 0}
+                          sale={p.sale}
+                          sku={firstActiveVariant?.sku || null}
+                          category={
+                            p.category
+                              ? {
+                                  name: p.category.name,
+                                  parent: p.category.parent
+                                    ? { name: p.category.parent.name }
+                                    : null,
+                                }
+                              : null
+                          }
+                        />
+                      );
+                    })}
                 </div>
               )
             ) : groupedBySub && groupedBySub.length > 0 ? (
@@ -205,9 +238,42 @@ export default function Home() {
                       <div className="ml-4 h-[1px] flex-1 bg-neutral-200" />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {items.map((p) => (
-                        <ProductCard key={p.id} product={p} />
-                      ))}
+                      {items.map((p) => {
+                        const firstActiveVariant = Array.isArray(p?.variants)
+                          ? p.variants.find((v) => v?.active !== false)
+                          : undefined;
+                        return (
+                          <ProductCard
+                            key={p.id}
+                            id={p.id}
+                            slug={p.slug || p.id}
+                            name={p.name}
+                            description={p.description || ""}
+                            price={
+                              typeof p.price === "number"
+                                ? (p.price as number)
+                                : undefined
+                            }
+                            images={p.images || []}
+                            imageUrl={p.imageUrl || undefined}
+                            packageSize={p.packageSize || undefined}
+                            pdfUrl={p.pdfUrl || undefined}
+                            stock={p.stock ?? 0}
+                            sale={p.sale}
+                            sku={firstActiveVariant?.sku || null}
+                            category={
+                              p.category
+                                ? {
+                                    name: p.category.name,
+                                    parent: p.category.parent
+                                      ? { name: p.category.parent.name }
+                                      : null,
+                                  }
+                                : null
+                            }
+                          />
+                        );
+                      })}
                     </div>
                   </section>
                 ))}
