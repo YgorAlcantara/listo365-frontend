@@ -1,4 +1,3 @@
-// src/pages/ProductPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
 import { getToken } from "@/services/auth";
@@ -24,7 +23,6 @@ export default function ProductPage() {
     | Partial<Product>
     | undefined;
 
-  // estado inicial com preview/cache para ficar instantâneo
   const [p, setP] = useState<Product | null>(() => {
     if (preview && preview.name) return (preview as Product) || null;
     if (idOrSlug) {
@@ -41,8 +39,6 @@ export default function ProductPage() {
   const syncing = useRef(false);
 
   const { add } = useCart();
-
-  // Se existe token salvo (admin), pedimos ?all=1
   const wantsAll = useMemo(() => Boolean(getToken()), []);
 
   useEffect(() => {
@@ -84,7 +80,6 @@ export default function ProductPage() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idOrSlug, wantsAll]);
 
   if (loading && !p) {
@@ -158,7 +153,7 @@ export default function ProductPage() {
 
   const mainImage = variantCover(selectedVariant);
 
-  // Preço efetivo
+  // Preço efetivo (respeitando visibilidade)
   const variantPrice = selectedVariant?.price;
   const basePrice = product.price as number | undefined;
   const effectivePrice =
@@ -173,11 +168,8 @@ export default function ProductPage() {
       ? basePrice
       : undefined;
 
-  const hasNumericPrice = typeof effectivePrice === "number";
-  const sku =
-    selectedVariant?.sku && selectedVariant.sku.trim()
-      ? selectedVariant!.sku!.trim()
-      : "—";
+  const hasNumericPrice =
+    product.visibility?.price === true && typeof effectivePrice === "number";
 
   function onSelectVariant(id: string) {
     setSelectedVarId(id);
@@ -216,7 +208,6 @@ export default function ProductPage() {
     window.setTimeout(() => setJustAdded(false), 1800);
   }
 
-  // ===== UI helpers =====
   const imgBox =
     "relative aspect-[4/3] w-full overflow-hidden rounded-2xl border bg-white";
   const imgEl = "absolute inset-0 h-full w-full object-contain p-3";
@@ -241,14 +232,13 @@ export default function ProductPage() {
         {product.category && <span>{product.category.name}</span>}
       </div>
 
-      {/* Título acima de tudo */}
+      {/* Título */}
       <h1 className="mb-5 text-3xl font-bold tracking-tight text-neutral-900">
         {product.name}
       </h1>
 
-      {/* Faixa 2 colunas — topo e base alinhados */}
       <div className="grid items-start gap-8 md:grid-cols-2">
-        {/* ESQUERDA — Imagem + thumbs */}
+        {/* Esquerda */}
         <div>
           <div className={imgBox}>
             <img
@@ -269,7 +259,7 @@ export default function ProductPage() {
             ) : null}
           </div>
 
-          {/* thumbs das VARIANTES */}
+          {/* thumbs */}
           <div className="mt-3">
             <div className="flex gap-2 overflow-x-auto">
               {activeVariants.length > 0
@@ -314,12 +304,11 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* DIREITA — Painel com MESMA ALTURA do box da imagem em md+, e auto em mobile */}
+        {/* Direita */}
         <div>
-          {/* Em telas pequenas (mobile), altura automática; em md+ travamos em 4/3 p/ igualar à imagem */}
           <div className="md:relative md:aspect-[4/3]">
             <div className="rounded-2xl border bg-white shadow-sm flex flex-col p-4 md:absolute md:inset-0 md:p-5 md:overflow-auto">
-              {/* Preço + package size */}
+              {/* Preço */}
               <div className="flex items-end justify-between gap-4">
                 <div className="flex items-baseline gap-3">
                   <span className="text-2xl font-semibold text-neutral-900">
@@ -347,7 +336,7 @@ export default function ProductPage() {
                 {selectedVariant?.sku?.trim() || "—"}
               </div>
 
-              {/* Chips de variantes */}
+              {/* Variantes */}
               {activeVariants.length > 0 && (
                 <div className="mt-4">
                   <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
@@ -357,7 +346,7 @@ export default function ProductPage() {
                     {activeVariants.map((v) => {
                       const isSel = v.id === selectedVarId;
                       const label =
-                        typeof v.price === "number"
+                        typeof v.price === "number" && product.visibility?.price
                           ? `${v.name} — ${money.format(v.price as number)}`
                           : v.name;
                       return (
@@ -396,7 +385,7 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* CATEGORY dentro do painel */}
+              {/* Categoria */}
               {product.category && (
                 <div className="mt-4 rounded-xl border bg-neutral-50 p-3">
                   <div className="text-xs font-semibold text-neutral-500">
@@ -411,7 +400,7 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* CTA + info (gruda no rodapé do box em md+, mas respeita altura em mobile) */}
+              {/* CTA */}
               <div className="mt-auto">
                 <div className="mt-4">
                   {hasNumericPrice ? (
@@ -456,7 +445,7 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Descrição — faixa inteira abaixo das duas colunas */}
+      {/* Descrição */}
       {product.description && (
         <div className="mt-8">
           <h2 className="mb-2 text-lg font-semibold text-neutral-900">
