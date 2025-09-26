@@ -15,7 +15,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // fecha on click outside
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (!ref.current) return;
@@ -84,11 +83,9 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
       {/* Painel dropdown responsivo */}
       <div
         className={[
-          // mobile: centralizado
-          "absolute left-1/2 -translate-x-1/2 mt-2 origin-top rounded-2xl border bg-white shadow-xl transition z-50",
-          "w-[360px] max-w-[95vw]",
-          // desktop: alinhado à direita
-          "sm:left-auto sm:right-0 sm:translate-x-0 sm:origin-top-right sm:max-w-sm",
+          "absolute top-full mt-2 origin-top-right rounded-2xl border bg-white shadow-xl transition z-50",
+          "right-2 w-[calc(100vw-90px)] max-w-sm", // mobile: ocupa até logo
+          "sm:w-[360px] sm:right-0 sm:max-w-sm", // desktop: fixo
           open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0",
         ].join(" ")}
       >
