@@ -86,7 +86,7 @@ export default function ProductCard(props: Props) {
 
   return (
     <article
-      className="group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
       onMouseEnter={() => prefetchProduct(key)}
       onTouchStart={() => prefetchProduct(key)}
     >
@@ -109,7 +109,7 @@ export default function ProductCard(props: Props) {
       </Link>
 
       {/* conteúdo */}
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex flex-1 flex-col gap-3 p-4">
         {/* título */}
         <div>
           <h3 className="line-clamp-2 text-sm font-semibold text-neutral-900">
@@ -120,21 +120,23 @@ export default function ProductCard(props: Props) {
 
           {/* categoria */}
           {categoryLabel ? (
-            <div className="mt-1 text-[12px] text-neutral-500">
+            <div className="mt-1 text-[12px] text-neutral-500 line-clamp-1">
               {categoryLabel}
             </div>
           ) : null}
 
           {(packageSize || sku) && (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-600">
-              {packageSize ? <span>{packageSize}</span> : null}
-              {sku ? <span>SKU: {sku}</span> : null}
+              {packageSize ? (
+                <span className="line-clamp-1">{packageSize}</span>
+              ) : null}
+              {sku ? <span className="line-clamp-1">SKU: {sku}</span> : null}
             </div>
           )}
         </div>
 
         {/* preço / quote / pdf */}
-        <div className="flex items-center justify-between">
+        <div className="mt-auto flex items-center justify-between">
           {hasPrice ? (
             sale?.salePrice ? (
               <div className="flex items-baseline gap-2">
