@@ -306,8 +306,8 @@ export default function ProductPage() {
 
         {/* Direita */}
         <div>
-          <div className="md:relative md:aspect-[4/3]">
-            <div className="rounded-2xl border bg-white shadow-sm flex flex-col p-4 md:absolute md:inset-0 md:p-5 md:overflow-auto">
+          <div className="h-full w-full">
+            <div className="rounded-2xl border bg-white shadow-sm flex flex-col p-4 md:p-6 lg:p-8">
               {/* Preço */}
               <div className="flex items-end justify-between gap-4">
                 <div className="flex items-baseline gap-3">
