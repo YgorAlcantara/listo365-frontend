@@ -15,6 +15,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // fecha ao clicar fora
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (!ref.current) return;
@@ -25,16 +26,22 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   }, [open]);
 
   const count = useMemo(
-    () => items.reduce((acc, it) => acc + (it.quantity || 0), 0),
+    () =>
+      items.reduce(
+        (acc, it) => acc + (Number.isFinite(it.quantity) ? it.quantity : 0),
+        0
+      ),
     [items]
   );
   const hasItems = count > 0;
 
+  // subtotal numérico (ignora cotação)
   const numericSubtotal = useMemo(
     () =>
       items.reduce((sum, it) => {
         if (typeof it.price === "number") {
-          return sum + it.price * (it.quantity || 0);
+          const q = Number.isFinite(it.quantity) ? it.quantity : 0;
+          return sum + it.price * q;
         }
         return sum;
       }, 0),
@@ -64,22 +71,27 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
         />
         {hasItems && (
           <span
-            className="absolute -right-1 -top-1 min-w-[18px] rounded-full px-1.5 bg-orange-600 text-white text-[11px] leading-5 text-center ring-2 ring-black"
+            className={[
+              "absolute -right-1 -top-1 min-w-[18px] rounded-full px-1.5",
+              "bg-orange-600 text-white text-[11px] leading-5 text-center",
+              "ring-2 ring-black",
+            ].join(" ")}
           >
             {count}
           </span>
         )}
       </button>
 
-      {/* Painel dropdown responsivo */}
+      {/* Painel */}
       <div
         className={[
-          "absolute top-full mt-2 origin-top-right rounded-2xl border bg-white shadow-xl transition z-50",
-          // Mobile: ocupa quase toda largura (com margem lateral pequena)
-          "w-[calc(100vw-1rem)] left-2 right-2 sm:w-[380px] sm:left-auto sm:right-0",
+          "absolute mt-2 origin-top rounded-2xl border bg-white shadow-xl transition z-50",
           open
             ? "scale-100 opacity-100"
             : "pointer-events-none scale-95 opacity-0",
+          "w-[360px] right-0", // desktop
+          "sm:right-0 sm:w-[360px]", // tablet/desktop mantém dropdown
+          "max-sm:fixed max-sm:inset-x-0 max-sm:top-16 max-sm:mx-4 max-sm:w-auto", // mobile ocupa largura útil
         ].join(" ")}
       >
         <div className="max-h-[70vh] overflow-auto p-3">
@@ -100,26 +112,24 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                   key={it.id}
                   className="flex items-center gap-3 rounded-xl border p-2"
                 >
-                  {/* Thumb */}
-                  <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+                  <div className="h-14 w-14 overflow-hidden rounded-lg bg-neutral-100 flex-shrink-0">
                     {it.imageUrl ? (
                       <img
                         src={it.imageUrl}
                         alt={it.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                         loading="lazy"
                         referrerPolicy="no-referrer"
                       />
                     ) : null}
                   </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-neutral-900 break-words">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-neutral-900">
                       {it.name}
                     </div>
                     {it.variantName && (
-                      <div className="text-xs text-neutral-500 break-words">
+                      <div className="text-xs text-neutral-500">
                         {it.variantName}
                       </div>
                     )}
@@ -132,7 +142,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </div>
                   </div>
 
-                  {/* Quantidade */}
                   <div className="flex items-center gap-1">
                     <button
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
@@ -153,7 +162,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </button>
                   </div>
 
-                  {/* Remover */}
                   <button
                     className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-red-50"
                     onClick={() => remove(it.id)}
@@ -185,7 +193,11 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
             <Link
               to="/checkout"
               onClick={() => setOpen(false)}
-              className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 transition"
+              className={[
+                "inline-flex w-full items-center justify-center rounded-xl",
+                "border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600",
+                "hover:bg-orange-50 transition",
+              ].join(" ")}
             >
               Go to checkout
             </Link>
