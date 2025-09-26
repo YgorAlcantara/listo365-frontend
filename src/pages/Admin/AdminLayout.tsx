@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { clearToken } from "@/services/auth";
 import { api } from "@/services/api";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Menu, X } from "lucide-react";
 import logo from "@/assets/Icon/Listo/LiconW.png";
 
 type Me = { id: string; email: string; name: string; role: string };
@@ -11,6 +11,7 @@ type Me = { id: string; email: string; name: string; role: string };
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -86,10 +87,19 @@ export default function AdminLayout() {
             </NavLink>
           </nav>
 
-          {/* User / actions */}
-          <div className="flex items-center gap-3">
+          {/* Mobile menu button */}
+          <button
+            className="md:hidden rounded-lg p-2 hover:bg-neutral-100"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+
+          {/* User / actions (desktop only for now) */}
+          <div className="hidden md:flex items-center gap-3">
             {me && (
-              <span className="hidden text-xs text-neutral-600 md:inline">
+              <span className="text-xs text-neutral-600">
                 {me.email} · {me.role}
               </span>
             )}
@@ -102,6 +112,33 @@ export default function AdminLayout() {
             </button>
           </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileOpen && (
+          <div className="md:hidden border-t border-neutral-200 bg-white px-4 py-3 space-y-2">
+            <NavLink to="/admin" className={linkCls} end onClick={() => setMobileOpen(false)}>
+              Products
+            </NavLink>
+            <NavLink to="/admin/orders" className={linkCls} onClick={() => setMobileOpen(false)}>
+              Orders
+            </NavLink>
+            <NavLink to="/admin/categories" className={linkCls} onClick={() => setMobileOpen(false)}>
+              Categories
+            </NavLink>
+            <NavLink to="/admin/promotions" className={linkCls} onClick={() => setMobileOpen(false)}>
+              Promotions
+            </NavLink>
+            <button
+              onClick={() => {
+                setMobileOpen(false);
+                logout();
+              }}
+              className="block w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-100"
+            >
+              Logout
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Sem sidebar — só conteúdo */}
