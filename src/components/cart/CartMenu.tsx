@@ -6,8 +6,8 @@ import { useCart } from "./CartProvider";
 import { money } from "@/utils/money";
 
 type Props = {
-  buttonClassName?: string; // (opcional) personalização via Header
-  iconClassName?: string; // (opcional)
+  buttonClassName?: string;
+  iconClassName?: string;
 };
 
 export function CartMenu({ buttonClassName, iconClassName }: Props) {
@@ -35,7 +35,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   );
   const hasItems = count > 0;
 
-  // ✅ NOVO: subtotal exibido ignora itens sem preço numérico
+  // subtotal só com preços numéricos
   const numericSubtotal = useMemo(
     () =>
       items.reduce((sum, it) => {
@@ -52,7 +52,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
     [items]
   );
   const subtotalDisplay = hasAnyNumeric ? money.format(numericSubtotal) : "—";
-  // Mantém `subtotal` do hook "usado" para não gerar warning se TS estiver estrito
   const showNote = !hasAnyNumeric && subtotal === 0;
 
   return (
@@ -70,7 +69,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
         <ShoppingBag
           className={["h-6 w-6", iconClassName || "text-white"].join(" ")}
         />
-        {/* Badge (bolinha) */}
         {hasItems && (
           <span
             className={[
@@ -84,14 +82,14 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
         )}
       </button>
 
-      {/* Painel dropdown */}
+      {/* Painel dropdown responsivo */}
       <div
         className={[
-          "absolute right-0 mt-2 w-[360px] origin-top-right rounded-2xl border bg-white shadow-xl transition",
+          "absolute right-0 mt-2 origin-top-right rounded-2xl border bg-white shadow-xl transition z-50",
+          "w-[360px] max-w-[95vw] sm:max-w-sm", // responsividade mobile
           open
             ? "scale-100 opacity-100"
             : "pointer-events-none scale-95 opacity-0",
-          "z-50",
         ].join(" ")}
       >
         <div className="max-h-[70vh] overflow-auto p-3">
@@ -112,7 +110,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                   key={it.id}
                   className="flex items-center gap-3 rounded-xl border p-2"
                 >
-                  {/* Thumb */}
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-neutral-100">
                     {it.imageUrl ? (
                       <img
@@ -125,7 +122,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     ) : null}
                   </div>
 
-                  {/* Info */}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-neutral-900">
                       {it.name}
@@ -144,7 +140,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </div>
                   </div>
 
-                  {/* Quantidade */}
                   <div className="flex items-center gap-1">
                     <button
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
@@ -165,7 +160,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </button>
                   </div>
 
-                  {/* Remover */}
                   <button
                     className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-red-50"
                     onClick={() => remove(it.id)}
