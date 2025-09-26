@@ -35,7 +35,6 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   );
   const hasItems = count > 0;
 
-  // subtotal só com preços numéricos
   const numericSubtotal = useMemo(
     () =>
       items.reduce((sum, it) => {
@@ -85,11 +84,12 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
       {/* Painel dropdown responsivo */}
       <div
         className={[
-          "absolute right-0 mt-2 origin-top-right rounded-2xl border bg-white shadow-xl transition z-50",
-          "w-[360px] max-w-[95vw] sm:max-w-sm", // responsividade mobile
-          open
-            ? "scale-100 opacity-100"
-            : "pointer-events-none scale-95 opacity-0",
+          // mobile: centralizado
+          "absolute left-1/2 -translate-x-1/2 mt-2 origin-top rounded-2xl border bg-white shadow-xl transition z-50",
+          "w-[360px] max-w-[95vw]",
+          // desktop: alinhado à direita
+          "sm:left-auto sm:right-0 sm:translate-x-0 sm:origin-top-right sm:max-w-sm",
+          open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0",
         ].join(" ")}
       >
         <div className="max-h-[70vh] overflow-auto p-3">
