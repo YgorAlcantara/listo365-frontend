@@ -25,11 +25,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
   }, [open]);
 
   const count = useMemo(
-    () =>
-      items.reduce(
-        (acc, it) => acc + (Number.isFinite(it.quantity) ? it.quantity : 0),
-        0
-      ),
+    () => items.reduce((acc, it) => acc + (it.quantity || 0), 0),
     [items]
   );
   const hasItems = count > 0;
@@ -38,8 +34,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
     () =>
       items.reduce((sum, it) => {
         if (typeof it.price === "number") {
-          const q = Number.isFinite(it.quantity) ? it.quantity : 0;
-          return sum + it.price * q;
+          return sum + it.price * (it.quantity || 0);
         }
         return sum;
       }, 0),
@@ -69,11 +64,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
         />
         {hasItems && (
           <span
-            className={[
-              "absolute -right-1 -top-1 min-w-[18px] rounded-full px-1.5",
-              "bg-orange-600 text-white text-[11px] leading-5 text-center",
-              "ring-2 ring-black",
-            ].join(" ")}
+            className="absolute -right-1 -top-1 min-w-[18px] rounded-full px-1.5 bg-orange-600 text-white text-[11px] leading-5 text-center ring-2 ring-black"
           >
             {count}
           </span>
@@ -84,9 +75,11 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
       <div
         className={[
           "absolute top-full mt-2 origin-top-right rounded-2xl border bg-white shadow-xl transition z-50",
-          "right-2 w-[calc(100vw-90px)] max-w-sm", // mobile: ocupa até logo
-          "sm:w-[360px] sm:right-0 sm:max-w-sm", // desktop: fixo
-          open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0",
+          // Mobile: ocupa quase toda largura (com margem lateral pequena)
+          "w-[calc(100vw-1rem)] left-2 right-2 sm:w-[380px] sm:left-auto sm:right-0",
+          open
+            ? "scale-100 opacity-100"
+            : "pointer-events-none scale-95 opacity-0",
         ].join(" ")}
       >
         <div className="max-h-[70vh] overflow-auto p-3">
@@ -107,7 +100,8 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                   key={it.id}
                   className="flex items-center gap-3 rounded-xl border p-2"
                 >
-                  <div className="h-14 w-14 overflow-hidden rounded-lg bg-neutral-100">
+                  {/* Thumb */}
+                  <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-100">
                     {it.imageUrl ? (
                       <img
                         src={it.imageUrl}
@@ -119,12 +113,13 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     ) : null}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-neutral-900">
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-neutral-900 break-words">
                       {it.name}
                     </div>
                     {it.variantName && (
-                      <div className="text-xs text-neutral-500">
+                      <div className="text-xs text-neutral-500 break-words">
                         {it.variantName}
                       </div>
                     )}
@@ -137,6 +132,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </div>
                   </div>
 
+                  {/* Quantidade */}
                   <div className="flex items-center gap-1">
                     <button
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-neutral-50"
@@ -157,6 +153,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
                     </button>
                   </div>
 
+                  {/* Remover */}
                   <button
                     className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-red-50"
                     onClick={() => remove(it.id)}
@@ -188,11 +185,7 @@ export function CartMenu({ buttonClassName, iconClassName }: Props) {
             <Link
               to="/checkout"
               onClick={() => setOpen(false)}
-              className={[
-                "inline-flex w-full items-center justify-center rounded-xl",
-                "border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600",
-                "hover:bg-orange-50 transition",
-              ].join(" ")}
+              className="inline-flex w-full items-center justify-center rounded-xl border border-orange-600 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 transition"
             >
               Go to checkout
             </Link>
