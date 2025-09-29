@@ -394,399 +394,331 @@ export default function Dashboard() {
       </div>
 
       {/* Form */}
-      <div className="space-y-3 rounded-2xl border bg-white p-4">
-        <h2 className="text-lg font-semibold">
-          {editing ? "Edit product" : "New product"}
-        </h2>
+<div className="space-y-3 rounded-2xl border bg-white p-4">
+  <h2 className="text-lg font-semibold">
+    {editing ? "Edit product" : "New product"}
+  </h2>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save();
-          }}
-          className="space-y-4"
+  <form
+    onSubmit={(e) => {
+      e.preventDefault();
+      void save();
+    }}
+    className="space-y-4"
+  >
+    {/* Campos principais */}
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div>
+        <label className="mb-1 block text-sm font-medium">Name *</label>
+        <input
+          required
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="Product name"
+          value={form.name}
+          onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium">Baseline price (USD)</label>
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          min="0"
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="e.g., 19.99 (can be 0 when using variants)"
+          value={form.price}
+          onChange={(e) => setForm((v) => ({ ...v, price: e.target.value }))}
+          disabled={loading}
+        />
+        <p className="mt-1 text-[11px] text-neutral-500">
+          Used when there are no variants or as a fallback. You can set 0.
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium">Stock *</label>
+        <input
+          required
+          type="number"
+          inputMode="numeric"
+          min="0"
+          step="1"
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="e.g., 12"
+          value={form.stock}
+          onChange={(e) => setForm((v) => ({ ...v, stock: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium">Package size</label>
+        <input
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="e.g., 1 gal / 32 oz"
+          value={form.packageSize}
+          onChange={(e) => setForm((v) => ({ ...v, packageSize: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium">PDF URL (datasheet)</label>
+        <input
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="/catalog/slug/datasheet.pdf or https://..."
+          value={form.pdfUrl}
+          onChange={(e) => setForm((v) => ({ ...v, pdfUrl: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium">Legacy cover image (optional)</label>
+        <input
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="/catalog/slug/1.jpg or https://..."
+          value={form.imageUrl}
+          onChange={(e) => setForm((v) => ({ ...v, imageUrl: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="mb-1 block text-sm font-medium">Description *</label>
+        <textarea
+          required
+          rows={3}
+          className="w-full rounded border px-3 py-2 text-sm"
+          placeholder="Short description"
+          value={form.description}
+          onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))}
+          disabled={loading}
+        />
+      </div>
+
+      {/* Categorias */}
+      <div className="md:col-span-2">
+        <CategoryPicker
+          parentId={form.categoryParentId}
+          subcategoryId={form.categoryId}
+          onChangeParent={(id) =>
+            setForm((v) => ({ ...v, categoryParentId: id, categoryId: undefined }))
+          }
+          onChangeSub={(id) => setForm((v) => ({ ...v, categoryId: id }))}
+        />
+      </div>
+
+      <label className="inline-flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={form.active}
+          onChange={(e) => setForm((v) => ({ ...v, active: e.target.checked }))}
+          disabled={loading}
+        />
+        <span className="text-sm">Active</span>
+      </label>
+    </div>
+
+    {/* VARIANTS */}
+    <div className="space-y-3 rounded-2xl border p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Variants</h3>
+        <button
+          type="button"
+          onClick={addVariant}
+          className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
         >
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Name *</label>
-              <input
-                required
-                className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="Product name"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((v) => ({ ...v, name: e.target.value }))
-                }
-                disabled={loading}
-              />
-            </div>
+          <FontAwesomeIcon icon={faPlus} /> Add variant
+        </button>
+      </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Baseline price (USD)
-              </label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="e.g., 19.99 (can be 0 when using variants)"
-                value={form.price}
-                onChange={(e) =>
-                  setForm((v) => ({ ...v, price: e.target.value }))
-                }
-                disabled={loading}
-              />
-              <p className="mt-1 text-[11px] text-neutral-500">
-                Used when there are no variants or as a fallback. You can set 0.
-              </p>
-            </div>
+      {variants.length === 0 && (
+        <p className="text-sm text-neutral-500">
+          No variants. You can sell a single-price product or add options here.
+        </p>
+      )}
 
+      {variants.map((v, i) => (
+        <div key={i} className="space-y-2 rounded-xl border p-3">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-[1.2fr_140px_120px_1fr]">
             <div>
-              <label className="mb-1 block text-sm font-medium">Stock *</label>
-              <input
-                required
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="1"
-                className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="e.g., 12"
-                value={form.stock}
-                onChange={(e) =>
-                  setForm((v) => ({ ...v, stock: e.target.value }))
-                }
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Package size
-              </label>
+              <label className="mb-1 block text-xs font-medium">Size / Variant name</label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
                 placeholder="e.g., 1 gal / 32 oz"
-                value={form.packageSize}
+                value={v.name}
                 onChange={(e) =>
-                  setForm((v) => ({ ...v, packageSize: e.target.value }))
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x))
+                  )
                 }
-                disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                PDF URL (datasheet)
-              </label>
+              <label className="mb-1 block text-xs font-medium">Variant price (USD)</label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="/catalog/slug/datasheet.pdf or https://..."
-                value={form.pdfUrl}
+                type="number"
+                step="0.01"
+                min={0}
+                value={v.price}
                 onChange={(e) =>
-                  setForm((v) => ({ ...v, pdfUrl: e.target.value }))
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, price: e.target.value } : x))
+                  )
                 }
-                disabled={loading}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                Legacy cover image (optional)
-              </label>
+              <label className="mb-1 block text-xs font-medium">Stock</label>
               <input
                 className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="/catalog/slug/1.jpg or https://..."
-                value={form.imageUrl}
+                type="number"
+                step="1"
+                min={0}
+                value={v.stock}
                 onChange={(e) =>
-                  setForm((v) => ({ ...v, imageUrl: e.target.value }))
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, stock: e.target.value } : x))
+                  )
                 }
-                disabled={loading}
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">
-                Description *
-              </label>
+            <div>
+              <label className="mb-1 block text-xs font-medium">SKU (optional)</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={v.sku || ""}
+                onChange={(e) =>
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, sku: e.target.value } : x))
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium">Cover image URL</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={v.imageUrl || ""}
+                onChange={(e) =>
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, imageUrl: e.target.value } : x))
+                  )
+                }
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Gallery URLs (one per line)</label>
               <textarea
-                required
                 rows={3}
-                className="w-full rounded border px-3 py-2 text-sm"
-                placeholder="Short description"
-                value={form.description}
+                className="w-full rounded border px-3 py-2 text-sm font-mono"
+                placeholder="/catalog/slug/1.jpg"
+                value={v.imagesText || ""}
                 onChange={(e) =>
-                  setForm((v) => ({ ...v, description: e.target.value }))
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, imagesText: e.target.value } : x))
+                  )
                 }
-                disabled={loading}
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                The first image will be used as the first gallery tile.
+              </p>
             </div>
+          </div>
 
-            {/* Categorias */}
-            <div className="md:col-span-2">
-              <CategoryPicker
-                parentId={form.categoryParentId}
-                subcategoryId={form.categoryId}
-                onChangeParent={(id) =>
-                  setForm((v) => ({
-                    ...v,
-                    categoryParentId: id,
-                    categoryId: undefined,
-                  }))
-                }
-                onChangeSub={(id) => setForm((v) => ({ ...v, categoryId: id }))}
-              />
-            </div>
-
-            <label className="inline-flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <label className="inline-flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={form.active}
+                checked={v.active}
                 onChange={(e) =>
-                  setForm((v) => ({ ...v, active: e.target.checked }))
+                  setVariants((a) =>
+                    a.map((x, idx) => (idx === i ? { ...x, active: e.target.checked } : x))
+                  )
                 }
-                disabled={loading}
               />
-              <span className="text-sm">Active</span>
+              Active
             </label>
-          </div>
 
-          {/* VARIANTES */}
-          <div className="space-y-3 rounded-2xl border p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Variants</h3>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
-              >
-                <FontAwesomeIcon icon={faPlus} /> Add variant
-              </button>
-            </div>
-
-            {variants.length === 0 && (
-              <p className="text-sm text-neutral-500">
-                No variants. You can sell a single-price product or add options
-                here.
-              </p>
-            )}
-
-            {variants.map((v, i) => (
-              <div key={i} className="space-y-2 rounded-xl border p-3">
-                <div className="grid gap-2 md:grid-cols-[1.2fr_140px_120px_1fr]">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      Size / Variant name
-                    </label>
-                    <input
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="e.g., 1 gal / 32 oz"
-                      value={v.name}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, name: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      Variant price (USD)
-                    </label>
-                    <input
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="0.00"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={v.price}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, price: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      Stock
-                    </label>
-                    <input
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="0"
-                      type="number"
-                      step="1"
-                      min={0}
-                      value={v.stock}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, stock: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      SKU (optional)
-                    </label>
-                    <input
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="SKU-123"
-                      value={v.sku || ""}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, sku: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      Cover image URL
-                    </label>
-                    <input
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="/catalog/slug/1.jpg or https://..."
-                      value={v.imageUrl || ""}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, imageUrl: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium">
-                      Gallery URLs (one per line)
-                    </label>
-                    <textarea
-                      rows={3}
-                      className="w-full rounded border px-3 py-2 text-sm font-mono"
-                      placeholder={`/catalog/slug/1.jpg
-/catalog/slug/2.jpg
-/catalog/slug/3.jpg`}
-                      value={v.imagesText || ""}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, imagesText: e.target.value } : x
-                          )
-                        )
-                      }
-                    />
-                    <p className="mt-1 text-[11px] text-neutral-500">
-                      The first image will be used as the first gallery tile.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="inline-flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={v.active}
-                      onChange={(e) =>
-                        setVariants((a) =>
-                          a.map((x, idx) =>
-                            idx === i ? { ...x, active: e.target.checked } : x
-                          )
-                        )
-                      }
-                    />
-                    Active
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => rmVariant(i)}
-                    className="rounded border px-2 py-1 text-sm text-red-600"
-                    title="Remove variant"
-                  >
-                    <FontAwesomeIcon icon={faTrash} /> Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Visibility */}
-          <div className="space-y-2 rounded-2xl border p-3">
-            <div className="mb-1 text-sm font-semibold">Visibility</div>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["price", "Price"],
-                  ["packageSize", "Package size"],
-                  ["pdf", "PDF"],
-                  ["images", "Images"],
-                  ["description", "Description"],
-                ] as Array<[keyof ProductVisibility, string]>
-              ).map(([k, label]) => {
-                const on = form.visibility[k];
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() =>
-                      setForm((v) => ({
-                        ...v,
-                        visibility: { ...v.visibility, [k]: !on },
-                      }))
-                    }
-                    className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
-                  >
-                    <FontAwesomeIcon icon={on ? faEye : faEyeSlash} />
-                    {label}: {on ? "Visible" : "Hidden"}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
             <button
-              type="submit"
-              disabled={loading}
-              className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
+              type="button"
+              onClick={() => rmVariant(i)}
+              className="rounded border px-2 py-1 text-sm text-red-600"
             >
-              {editing
-                ? loading
-                  ? "Saving…"
-                  : "Save changes"
-                : loading
-                ? "Creating…"
-                : "Create"}
+              <FontAwesomeIcon icon={faTrash} /> Remove
             </button>
-            {editing && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="rounded border px-4 py-2 text-sm"
-                disabled={loading}
-              >
-                Cancel
-              </button>
-            )}
           </div>
-        </form>
+        </div>
+      ))}
+    </div>
+
+    {/* Visibility */}
+    <div className="space-y-2 rounded-2xl border p-3">
+      <div className="mb-1 text-sm font-semibold">Visibility</div>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["price", "Price"],
+            ["packageSize", "Package size"],
+            ["pdf", "PDF"],
+            ["images", "Images"],
+            ["description", "Description"],
+          ] as Array<[keyof ProductVisibility, string]>
+        ).map(([k, label]) => {
+          const on = form.visibility[k];
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() =>
+                setForm((v) => ({
+                  ...v,
+                  visibility: { ...v.visibility, [k]: !on },
+                }))
+              }
+              className="inline-flex items-center gap-2 rounded border px-3 py-2 text-sm hover:bg-neutral-50"
+            >
+              <FontAwesomeIcon icon={on ? faEye : faEyeSlash} />
+              {label}: {on ? "Visible" : "Hidden"}
+            </button>
+          );
+        })}
       </div>
+    </div>
+
+    {/* Actions */}
+    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+      <button
+        type="submit"
+        disabled={loading}
+        className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
+      >
+        {editing ? (loading ? "Saving…" : "Save changes") : loading ? "Creating…" : "Create"}
+      </button>
+      {editing && (
+        <button
+          type="button"
+          onClick={cancelEdit}
+          className="rounded border px-4 py-2 text-sm"
+          disabled={loading}
+        >
+          Cancel
+        </button>
+      )}
+    </div>
+  </form>
+</div>
 
       {/* MOBILE: cards */}
 <div className="block md:hidden space-y-3">
