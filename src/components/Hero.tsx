@@ -4,20 +4,22 @@ import heroBg from "@/assets/Banner/12.png";
 
 export function Hero() {
   return (
-    // full-bleed + altura fixa controlada para evitar zoom no mobile
-    <section className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen h-[60vh] sm:h-[70vh] overflow-hidden">
+    // full-bleed: ocupa 100% da janela horizontalmente
+    <section className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen overflow-hidden">
       {/* Background + overlays */}
       <div className="absolute inset-0">
         <div
-          className="absolute inset-0 bg-cover bg-top sm:bg-center"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${heroBg})` }}
         />
+        {/* véu alaranjado da marca */}
+        {/*<div className="absolute inset-0 bg-gradient-to-r from-orange-600/45 via-orange-500/35 to-orange-300/10 mix-blend-multiply" /> */}
         {/* vinheta sutil para contraste do texto */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(0,0,0,0.35),transparent_55%)]" />
       </div>
 
-      {/* Conteúdo central */}
-      <div className="relative mx-auto flex h-full max-w-7xl flex-col justify-center px-6">
+      {/* Conteúdo central com largura do site */}
+      <div className="relative mx-auto max-w-7xl px-6 py-16 sm:py-20">
         {/* selo */}
         <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-[11px] font-medium text-orange-700 ring-1 ring-orange-200 backdrop-blur">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
@@ -26,13 +28,12 @@ export function Hero() {
 
         {/* headline + sub */}
         <div className="mt-5 max-w-3xl text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.4)]">
-          <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">
+          <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl">
             Solutions for a Cleaner Business
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-white/90 sm:text-base">
-            Professionally engineered chemical solutions for maintenance teams,
-            contractors and facilities. Explore our catalog and request a
-            tailored quote — quickly and confidently.
+          <p className="mt-3 text-base leading-relaxed text-white/90">
+            Professionally engineered chemical solutions for maintenance teams, contractors and facilities.
+            Explore our catalog and request a tailored quote — quickly and confidently.
           </p>
         </div>
 
@@ -67,8 +68,8 @@ export function Hero() {
         </ul>
       </div>
 
-      {/* fade inferior */}
-      <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-b from-transparent to-white" />
+      {/* fade para integrar com fundo branco do site */}
+      <div className="h-10 bg-gradient-to-b from-transparent to-white" />
     </section>
   );
 }
