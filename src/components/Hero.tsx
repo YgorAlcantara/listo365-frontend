@@ -54,7 +54,7 @@ export function Hero() {
         </div>
 
         {/* bullets */}
-        <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-orange-500/90">
+        <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/90">
           {[
             "High-performance formulas",
             "Bulk sizes available",
