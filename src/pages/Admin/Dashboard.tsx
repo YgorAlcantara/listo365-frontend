@@ -788,8 +788,70 @@ export default function Dashboard() {
         </form>
       </div>
 
+      {/* MOBILE: cards */}
+<div className="block md:hidden space-y-3">
+  {visible.map((p) => (
+    <div
+      key={p.id}
+      className="rounded-xl border bg-white p-4 shadow-sm space-y-2"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">{p.name}</h3>
+        <span
+          className={`text-xs px-2 py-1 rounded ${
+            p.active ? "bg-emerald-100 text-emerald-700" : "bg-gray-200"
+          }`}
+        >
+          {p.active ? "Active" : "Archived"}
+        </span>
+      </div>
+      <p className="text-sm text-neutral-600 line-clamp-2">
+        {p.description}
+      </p>
+      <div className="text-sm">
+        <b>Stock:</b> {p.stock} |{" "}
+        <b>Price:</b>{" "}
+        {p.visibility?.price === false || typeof p.price !== "number"
+          ? "—"
+          : `$${Number(p.price).toFixed(2)}`}
+      </div>
+      <div className="flex flex-wrap gap-2 pt-2 text-sm">
+        <Link
+          to={`/product/${encodeURIComponent(p.slug || p.id)}`}
+          target="_blank"
+          className="text-orange-600 underline"
+        >
+          View
+        </Link>
+        <button onClick={() => startEdit(p)} className="underline">
+          Edit
+        </button>
+        <button
+          onClick={() => (p.active ? archiveProduct(p) : unarchiveProduct(p))}
+          className="underline"
+        >
+          {p.active ? "Archive" : "Unarchive"}
+        </button>
+        <button
+          onClick={() => deleteProduct(p)}
+          className="underline text-red-600"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  ))}
+
+  {visible.length === 0 && (
+    <p className="text-center text-sm text-neutral-500 py-6">
+      No products found.
+    </p>
+  )}
+</div>
+
+
       {/* Table */}
-      <div className="overflow-auto rounded-2xl border bg-white">
+      <div className="hidden md:block overflow-auto rounded-2xl border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
             <tr>
