@@ -390,7 +390,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
-        <h1 className="text-2xl font-bold">Admin — Products</h1>
+        <h1 className="text-2xl font-bold"></h1>
       </div>
 
       {/* Form */}
