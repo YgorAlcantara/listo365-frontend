@@ -9,11 +9,11 @@ export function Hero() {
       {/* Background + overlays */}
       <div className="absolute inset-0">
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-top sm:bg-center"
           style={{ backgroundImage: `url(${heroBg})` }}
         />
         {/* véu alaranjado da marca */}
-        {/*<div className="absolute inset-0 bg-gradient-to-r from-orange-600/45 via-orange-500/35 to-orange-300/10 mix-blend-multiply" /> */}
+        {/* <div className="absolute inset-0 bg-gradient-to-r from-orange-600/45 via-orange-500/35 to-orange-300/10 mix-blend-multiply" /> */}
         {/* vinheta sutil para contraste do texto */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(0,0,0,0.35),transparent_55%)]" />
       </div>
@@ -32,8 +32,9 @@ export function Hero() {
             Solutions for a Cleaner Business
           </h1>
           <p className="mt-3 text-base leading-relaxed text-white/90">
-            Professionally engineered chemical solutions for maintenance teams, contractors and facilities.
-            Explore our catalog and request a tailored quote — quickly and confidently.
+            Professionally engineered chemical solutions for maintenance teams,
+            contractors and facilities. Explore our catalog and request a
+            tailored quote — quickly and confidently.
           </p>
         </div>
 
