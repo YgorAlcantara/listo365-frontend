@@ -805,9 +805,11 @@ export default function Dashboard() {
           {p.active ? "Active" : "Archived"}
         </span>
       </div>
+
       <p className="text-sm text-neutral-600 line-clamp-2">
         {p.description}
       </p>
+
       <div className="text-sm">
         <b>Stock:</b> {p.stock} |{" "}
         <b>Price:</b>{" "}
@@ -815,6 +817,7 @@ export default function Dashboard() {
           ? "—"
           : `$${Number(p.price).toFixed(2)}`}
       </div>
+
       <div className="flex flex-wrap gap-2 pt-2 text-sm">
         <Link
           to={`/product/${encodeURIComponent(p.slug || p.id)}`}
@@ -838,6 +841,12 @@ export default function Dashboard() {
         >
           Delete
         </button>
+        <button
+          onClick={() => deleteProductHard(p)}
+          className="underline text-red-700"
+        >
+          Delete permanently
+        </button>
       </div>
     </div>
   ))}
@@ -848,7 +857,6 @@ export default function Dashboard() {
     </p>
   )}
 </div>
-
 
       {/* Table */}
       <div className="hidden md:block overflow-auto rounded-2xl border bg-white">
