@@ -1,3 +1,4 @@
+// src/pages/Admin/Orders.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/services/api";
 import { money } from "@/utils/money";
@@ -46,7 +47,7 @@ function sumItems(items: OrderItem[]) {
   return items.reduce((acc, it) => acc + it.quantity * asNumber(it.unitPrice), 0);
 }
 
-export default function AdminOrders() {
+export default function Orders() {
   const [tab, setTab] = useState<"ALL" | OrderStatus>("ALL");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -261,61 +262,54 @@ export default function AdminOrders() {
       </form>
 
       {/* MOBILE: cards */}
-<div className="block md:hidden space-y-3">
-  {data.rows.map((o) => (
-    <div
-      key={o.id}
-      className="rounded-xl border bg-white p-4 shadow-sm space-y-2"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Order {o.id}</h3>
-        <span className={statusBadge(o.status)}>{o.status.replace("_", " ")}</span>
-      </div>
-
-      {/* Infos principais */}
-      <div className="text-xs text-neutral-600">
-        <div><b>Created:</b> {fmtDate(o.createdAt)}</div>
-        <div><b>Customer:</b> {o.customer?.name || "—"}</div>
-        <div><b>Email:</b> {o.customer?.email || "—"}</div>
-        <div><b>Phone:</b> {o.customer?.phone || "—"}</div>
-      </div>
-
-      {/* Totais */}
-      <div className="text-sm">
-        <b>Items:</b> {o.items.length} ·{" "}
-        <b>Total:</b> {money.format(sumItems(o.items))}
-      </div>
-
-      {/* Ações */}
-      <div className="flex flex-wrap gap-2 pt-2 text-sm">
-        <button
-          onClick={() => setOpenId(o.id)}
-          className="text-orange-600 underline"
-        >
-          View
-        </button>
-        {/* Você pode adicionar aqui botões rápidos de status, ex: */}
-        {o.status !== "COMPLETED" && (
-          <button
-            onClick={() => changeStatus("COMPLETED")}
-            className="underline"
+      <div className="block md:hidden space-y-3">
+        {data.rows.map((o) => (
+          <div
+            key={o.id}
+            className="rounded-xl border bg-white p-4 shadow-sm space-y-2"
           >
-            Mark completed
-          </button>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Order {o.id}</h3>
+              <span className={statusBadge(o.status)}>
+                {o.status.replace("_", " ")}
+              </span>
+            </div>
+
+            {/* Infos principais */}
+            <div className="text-xs text-neutral-600">
+              <div><b>Created:</b> {fmtDate(o.createdAt)}</div>
+              <div><b>Customer:</b> {o.customer?.name || "—"}</div>
+              <div><b>Email:</b> {o.customer?.email || "—"}</div>
+              <div><b>Phone:</b> {o.customer?.phone || "—"}</div>
+            </div>
+
+            {/* Totais */}
+            <div className="text-sm">
+              <b>Items:</b> {o.items.length} ·{" "}
+              <b>Total:</b> {money.format(sumItems(o.items))}
+            </div>
+
+            {/* Ações */}
+            <div className="flex flex-wrap gap-2 pt-2 text-sm">
+              <button
+                onClick={() => setOpenId(o.id)}
+                className="text-orange-600 underline"
+              >
+                View
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {data.rows.length === 0 && (
+          <p className="text-center text-sm text-neutral-500 py-6">
+            {loading ? "Loading…" : "No orders found."}
+          </p>
         )}
       </div>
-    </div>
-  ))}
 
-  {data.rows.length === 0 && (
-    <p className="text-center text-sm text-neutral-500 py-6">
-      {loading ? "Loading…" : "No orders found."}
-    </p>
-  )}
-</div>
-      
-      {/* Table */}
+      {/* DESKTOP: table */}
       <div className="hidden md:block overflow-auto rounded-xl border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
@@ -351,7 +345,9 @@ export default function AdminOrders() {
                 <td className="px-3 py-2">{o.items.length}</td>
                 <td className="px-3 py-2">{money.format(sumItems(o.items))}</td>
                 <td className="px-3 py-2">
-                  <span className={statusBadge(o.status)}>{o.status.replace("_", " ")}</span>
+                  <span className={statusBadge(o.status)}>
+                    {o.status.replace("_", " ")}
+                  </span>
                 </td>
                 <td className="px-3 py-2">
                   <button
@@ -420,19 +416,10 @@ export default function AdminOrders() {
             <div className="mt-4 rounded-2xl border bg-white p-3">
               <h4 className="mb-2 font-medium">Customer</h4>
               <div className="text-sm">
-                <div>
-                  <b>Name:</b> {detail.customer?.name || "—"}
-                </div>
-                <div>
-                  <b>Email:</b> {detail.customer?.email || "—"}
-                </div>
-                <div>
-                  <b>Phone:</b> {detail.customer?.phone || "—"}
-                </div>
-                <div>
-                  <b>Marketing opt-in:</b>{" "}
-                  {detail.customer?.marketingOptIn ? "Yes" : "No"}
-                </div>
+                <div><b>Name:</b> {detail.customer?.name || "—"}</div>
+                <div><b>Email:</b> {detail.customer?.email || "—"}</div>
+                <div><b>Phone:</b> {detail.customer?.phone || "—"}</div>
+                <div><b>Marketing opt-in:</b> {detail.customer?.marketingOptIn ? "Yes" : "No"}</div>
               </div>
             </div>
 
@@ -462,9 +449,7 @@ export default function AdminOrders() {
                 {detail.items.map((it) => (
                   <div key={it.id} className="flex items-center justify-between text-sm">
                     <div>
-                      <div className="font-medium">
-                        {it.product?.name || it.productId}
-                      </div>
+                      <div className="font-medium">{it.product?.name || it.productId}</div>
                       <div className="text-xs text-neutral-500">
                         Qty: {it.quantity} · Unit: {money.format(asNumber(it.unitPrice))}
                       </div>
