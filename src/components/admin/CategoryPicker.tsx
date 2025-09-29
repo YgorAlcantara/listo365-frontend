@@ -105,18 +105,19 @@ export default function CategoryPicker({
 
   return (
     <div className="space-y-3 rounded-2xl border bg-white p-3">
+      {/* Parent category */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label className="w-full shrink-0 text-sm font-medium sm:w-40">
           Parent category
         </label>
-        <div className="flex w-full items-center gap-2">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
           <select
-            className="flex-1 rounded-lg border px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm"
             value={parentId || ""}
             onChange={(e) => {
               const val = e.target.value || undefined;
               onChangeParent(val);
-              onChangeSub(undefined); // reset sub when parent changes
+              onChangeSub(undefined);
             }}
             disabled={loading || busy !== null}
             aria-label="Select parent category"
@@ -138,9 +139,7 @@ export default function CategoryPicker({
             className="rounded-lg border px-3 py-2 text-xs font-medium hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-50"
             disabled={loading || busy !== null}
           >
-            {busy === "create" && creating === "parent"
-              ? "Creating…"
-              : "New parent"}
+            {busy === "create" && creating === "parent" ? "Creating…" : "New parent"}
           </button>
 
           <button
@@ -154,13 +153,14 @@ export default function CategoryPicker({
         </div>
       </div>
 
+      {/* Subcategory */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label className="w-full shrink-0 text-sm font-medium sm:w-40">
           Subcategory
         </label>
-        <div className="flex w-full items-center gap-2">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
           <select
-            className="flex-1 rounded-lg border px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm"
             value={subcategoryId || ""}
             onChange={(e) => onChangeSub(e.target.value || undefined)}
             disabled={!parentId || loading || busy !== null}
@@ -183,13 +183,12 @@ export default function CategoryPicker({
             className="rounded-lg border px-3 py-2 text-xs font-medium hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-50"
             disabled={!parentId || loading || busy !== null}
           >
-            {busy === "create" && creating === "child"
-              ? "Creating…"
-              : "New sub"}
+            {busy === "create" && creating === "child" ? "Creating…" : "New sub"}
           </button>
         </div>
       </div>
 
+      {/* Creating new category */}
       {creating && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="w-full shrink-0 text-sm font-medium sm:w-40">
@@ -200,11 +199,7 @@ export default function CategoryPicker({
               className="flex-1 rounded-lg border px-3 py-2 text-sm"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={
-                creating === "parent"
-                  ? "e.g., Floor Care"
-                  : "e.g., Floor Finishes"
-              }
+              placeholder={creating === "parent" ? "e.g., Floor Care" : "e.g., Floor Finishes"}
               disabled={busy !== null}
             />
             <button
