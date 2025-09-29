@@ -260,8 +260,63 @@ export default function AdminOrders() {
         </button>
       </form>
 
+      {/* MOBILE: cards */}
+<div className="block md:hidden space-y-3">
+  {data.rows.map((o) => (
+    <div
+      key={o.id}
+      className="rounded-xl border bg-white p-4 shadow-sm space-y-2"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">Order {o.id}</h3>
+        <span className={statusBadge(o.status)}>{o.status.replace("_", " ")}</span>
+      </div>
+
+      {/* Infos principais */}
+      <div className="text-xs text-neutral-600">
+        <div><b>Created:</b> {fmtDate(o.createdAt)}</div>
+        <div><b>Customer:</b> {o.customer?.name || "—"}</div>
+        <div><b>Email:</b> {o.customer?.email || "—"}</div>
+        <div><b>Phone:</b> {o.customer?.phone || "—"}</div>
+      </div>
+
+      {/* Totais */}
+      <div className="text-sm">
+        <b>Items:</b> {o.items.length} ·{" "}
+        <b>Total:</b> {money.format(sumItems(o.items))}
+      </div>
+
+      {/* Ações */}
+      <div className="flex flex-wrap gap-2 pt-2 text-sm">
+        <button
+          onClick={() => setOpenId(o.id)}
+          className="text-orange-600 underline"
+        >
+          View
+        </button>
+        {/* Você pode adicionar aqui botões rápidos de status, ex: */}
+        {o.status !== "COMPLETED" && (
+          <button
+            onClick={() => changeStatus("COMPLETED")}
+            className="underline"
+          >
+            Mark completed
+          </button>
+        )}
+      </div>
+    </div>
+  ))}
+
+  {data.rows.length === 0 && (
+    <p className="text-center text-sm text-neutral-500 py-6">
+      {loading ? "Loading…" : "No orders found."}
+    </p>
+  )}
+</div>
+      
       {/* Table */}
-      <div className="overflow-auto rounded-xl border bg-white">
+      <div className="hidden md:block overflow-auto rounded-xl border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-neutral-50">
             <tr>
