@@ -61,7 +61,7 @@ export function Hero() {
             "Fast, friendly quotes",
           ].map((t) => (
             <li key={t} className="inline-flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-white" />
+              <CheckCircle className="h-4 w-5 text-white" />
               <span>{t}</span>
             </li>
           ))}
