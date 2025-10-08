@@ -16,14 +16,15 @@ function resolveBase(): string {
   const fromEnv = (typeof import.meta !== "undefined" && (import.meta as any)?.env?.VITE_API_BASE_URL) || "";
 
   if (fromWindow) return normalize(fromWindow as string);
-  if (fromEnv) return normalize(fromEnv as string);
+if (fromEnv) return normalize(fromEnv as string);
 
-  const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
-  if (isLocal) return "http://localhost:4000";
+const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+const isLocal = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 
-  // produção → sempre proxy do vercel (/api)
-  return "/api";
+if (isLocal) return "http://localhost:4000";
+
+// fallback de produção (caso o env falhe)
+return "https://api.listo365cleaningsolutions.com";
 }
 
 let BASE_API_URL = resolveBase();
