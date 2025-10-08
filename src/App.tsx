@@ -22,6 +22,8 @@ import AdminOrderDetail from "@/pages/Admin/AdminOrderDetail";
 import Categories from "@/pages/Admin/Categories";
 import Promotions from "@/pages/Admin/Promotions";
 
+import { api } from "@/services/api";
+
 function PublicShell() {
   return (
     <>
@@ -40,8 +42,18 @@ function PublicShell() {
 
 export default function App() {
   useEffect(() => {
-    // warm-up via proxy (sem CORS)
-    fetch(`/api/health`, { cache: "no-store" }).catch(() => {});
+    // Health check: acorda o backend no Render (ou local)
+    const base =
+      (window.__API_BASE__ ||
+        import.meta.env.VITE_API_BASE_URL ||
+        "https://api.listo365cleaningsolutions.com").replace(/\/+$/, "");
+
+    fetch(`${base}/health`, { cache: "no-store" })
+      .then(() => console.log("✅ Backend health checked:", base))
+      .catch((err) => console.warn("⚠️ Health check failed:", err));
+
+    // Também força inicialização do cliente axios configurado
+    api.get("/health").catch(() => {});
   }, []);
 
   return (
