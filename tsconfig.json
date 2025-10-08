@@ -11,15 +11,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-
-    // Alias config
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    },
-
-    // Silencia aviso de depreciação até TS 7
-    "ignoreDeprecations": "6.0"
+    }
   },
   "include": ["src"]
 }
