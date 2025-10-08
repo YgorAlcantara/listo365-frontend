@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "npx tsc -p tsconfig.json && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -36,7 +36,7 @@
     "postcss": "^8.4.41",
     "prettier": "3.6.2",
     "tailwindcss": "^3.4.10",
-    "typescript": "^5.9.3",
+    "typescript": "5.9.3",
     "vite": "^5.4.19",
     "vite-tsconfig-paths": "^5.0.1"
   }
